@@ -15,7 +15,7 @@ import android.widget.RelativeLayout;
 public class MainActivity extends Activity {
     private WebView webView;
     private ProgressBar progressBar;
-    private static final String URL = "https://zhushisanxiangfangfamily.github.io/family-tree";
+    private static final String URL = "https://zhushisanxiangfangfamily.github.io/family-tree?key=4646";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
