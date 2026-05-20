@@ -8,8 +8,6 @@ import android.view.View;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebResourceResponse;
 import android.webkit.WebViewClient;
 import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
@@ -17,7 +15,7 @@ import android.widget.RelativeLayout;
 public class MainActivity extends Activity {
     private WebView webView;
     private ProgressBar progressBar;
-    private static final String URL = "https://cdn.jsdelivr.net/gh/zhushisanxiangfangfamily/family-tree@master/index.html?key=4646";
+    private static final String URL = "https://zhushisanxiangfangfamily.github.io/family-tree/?key=4646";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -59,23 +57,6 @@ public class MainActivity extends Activity {
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 view.loadUrl(url);
                 return true;
-            }
-
-            @Override
-            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                String url = request.getUrl().toString();
-                // raw.githubusercontent.com returns text/plain which WebView won't render.
-                // Intercept HTML responses and force text/html so the page renders properly.
-                if (url.contains("raw.githubusercontent.com") && url.endsWith(".html")) {
-                    try {
-                        java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
-                        conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36");
-                        return new WebResourceResponse("text/html", "UTF-8", conn.getInputStream());
-                    } catch (Exception e) {
-                        return null;
-                    }
-                }
-                return null;
             }
         });
 
