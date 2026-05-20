@@ -15,7 +15,7 @@ import android.widget.RelativeLayout;
 public class MainActivity extends Activity {
     private WebView webView;
     private ProgressBar progressBar;
-    private static final String URL = "file:///android_asset/index.html?key=4646";
+    private static final String URL = "https://cdn.jsdelivr.net/gh/zhushisanxiangfangfamily/family-tree@master/index.html?key=4646";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,9 +47,7 @@ public class MainActivity extends Activity {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
-        settings.setAllowFileAccess(true);
-        settings.setAllowFileAccessFromFileURLs(true);
-        settings.setAllowUniversalAccessFromFileURLs(true);
+        settings.setAllowFileAccess(false);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         settings.setUserAgentString(settings.getUserAgentString() + " FamilyTreeApp/1.0");
