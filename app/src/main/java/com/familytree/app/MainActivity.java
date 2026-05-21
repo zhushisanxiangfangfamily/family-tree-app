@@ -2,6 +2,7 @@ package com.familytree.app;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.DownloadManager;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
@@ -36,13 +37,12 @@ public class MainActivity extends Activity {
     private ProgressBar progressBar;
     private TextView backBtn;
     private boolean unlocked = false;
-    private boolean updateChecked = false;
     private long lastBackTime = 0;
     private ValueCallback<Uri[]> fileChooserCallback;
-    private static final int VERSION_CODE = 12;
+    private static final int VERSION_CODE = 13;
     private static final String HOME_URL = "https://zhushisanxiangfangfamily.github.io/family-tree-test/";
     private static final String VERSION_URL = "https://raw.githubusercontent.com/zhushisanxiangfangfamily/family-tree-app/master/version.txt";
-    private static final String DOWNLOAD_URL = "https://github.com/zhushisanxiangfangfamily/family-tree-app/releases";
+    private static final String UPDATE_APK_URL = "https://github.com/zhushisanxiangfangfamily/family-tree-app/releases/latest/download/app-debug.apk";
 
     private static final String EXPORT_JS =
         "(function(){" +
@@ -202,10 +202,7 @@ public class MainActivity extends Activity {
                 } else {
                     view.evaluateJavascript(HASH_HISTORY_JS, null);
                     view.evaluateJavascript(EXPORT_JS, null);
-                    if (!updateChecked) {
-                        updateChecked = true;
-                        checkUpdate();
-                    }
+                    checkUpdate();
                 }
             }
         });
@@ -261,7 +258,7 @@ public class MainActivity extends Activity {
                         });
                     }
                 } catch (Exception e) {
-                    // Network error or no version file, silently skip
+                    // Network error, silently skip
                 }
             }
         }).start();
@@ -269,17 +266,32 @@ public class MainActivity extends Activity {
 
     private void showUpdateDialog() {
         new AlertDialog.Builder(this)
-            .setTitle("发现新版本")
-            .setMessage("家族族谱 App 有新版本可用，是否前往下载？")
-            .setPositiveButton("前往下载", new android.content.DialogInterface.OnClickListener() {
+            .setTitle("发现新版本（V" + VERSION_CODE + " → 最新版）")
+            .setMessage("家族族谱 App 有新版本可用，更新后才能继续使用。\n\n点击"立即更新"将自动下载并安装。")
+            .setCancelable(false)
+            .setPositiveButton("立即更新", new android.content.DialogInterface.OnClickListener() {
                 @Override
                 public void onClick(android.content.DialogInterface dialog, int which) {
-                    Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(DOWNLOAD_URL));
-                    startActivity(intent);
+                    downloadAndInstall();
                 }
             })
-            .setNegativeButton("稍后再说", null)
             .show();
+    }
+
+    private void downloadAndInstall() {
+        try {
+            DownloadManager.Request request = new DownloadManager.Request(Uri.parse(UPDATE_APK_URL));
+            request.setTitle("家族族谱更新");
+            request.setDescription("正在下载新版本...");
+            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "家族族谱.apk");
+            request.setMimeType("application/vnd.android.package-archive");
+            DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+            dm.enqueue(request);
+            Toast.makeText(this, "正在下载，请在通知栏查看进度，下载完成后点击安装", Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "下载失败，请检查网络后重试", Toast.LENGTH_SHORT).show();
+        }
     }
 
     @Override
