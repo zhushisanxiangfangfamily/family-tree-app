@@ -39,7 +39,7 @@ public class MainActivity extends Activity {
     private boolean unlocked = false;
     private long lastBackTime = 0;
     private ValueCallback<Uri[]> fileChooserCallback;
-    private static final int VERSION_CODE = 18;
+    private static final int VERSION_CODE = 19;
     private static final String HOME_URL = "https://zhushisanxiangfangfamily.github.io/family-tree-test/";
     private static final String VERSION_URL = "https://raw.githubusercontent.com/zhushisanxiangfangfamily/family-tree-app/master/version.txt";
     private static final String UPDATE_APK_URL = "https://github.com/zhushisanxiangfangfamily/family-tree-app/releases/latest/download/app-debug.apk";
@@ -170,7 +170,7 @@ public class MainActivity extends Activity {
         settings.setUserAgentString(settings.getUserAgentString() + " FamilyTreeApp/1.0");
 
         webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        webView.setBackgroundColor(Color.parseColor("#F5F0E8"));
+        webView.setBackgroundColor(Color.TRANSPARENT);
         webView.clearCache(true);
 
         webView.setWebViewClient(new WebViewClient() {
