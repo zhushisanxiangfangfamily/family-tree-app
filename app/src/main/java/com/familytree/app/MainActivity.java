@@ -4,8 +4,11 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.DownloadManager;
 import android.content.Intent;
+import android.content.res.AssetFileDescriptor;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
+import android.media.AudioManager;
+import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
@@ -36,10 +39,12 @@ public class MainActivity extends Activity {
     private WebView webView;
     private ProgressBar progressBar;
     private TextView backBtn;
+    private MediaPlayer mediaPlayer;
+    private boolean musicPausedByLifecycle = false;
     private boolean unlocked = false;
     private long lastBackTime = 0;
     private ValueCallback<Uri[]> fileChooserCallback;
-    private static final int VERSION_CODE = 21;
+    private static final int VERSION_CODE = 22;
     private static final String HOME_URL = "https://zhushisanxiangfangfamily.github.io/family-tree-test/";
     private static final String VERSION_URL = "https://raw.githubusercontent.com/zhushisanxiangfangfamily/family-tree-app/master/version.txt";
     private static final String UPDATE_APK_URL = "https://github.com/zhushisanxiangfangfamily/family-tree-app/releases/latest/download/app-debug.apk";
@@ -52,6 +57,19 @@ public class MainActivity extends Activity {
         "Android.exportHTML(html);" +
         "}else{_orig(html);}" +
         "};" +
+        "})();";
+
+    private static final String MUSIC_SYNC_JS =
+        "(function(){" +
+        "var cfg=JSON.parse(localStorage.getItem('ft_config')||'{}');" +
+        "if(window.Android){" +
+        "if(cfg.musicEnabled!==false){" +
+        "var p=Android.isMusicPlaying();" +
+        "if(p!=='true')Android.playMusic(cfg.musicUrl||'');" +
+        "}else{" +
+        "Android.pauseMusic();" +
+        "}" +
+        "}" +
         "})();";
 
     private static final String HASH_HISTORY_JS =
@@ -206,6 +224,7 @@ public class MainActivity extends Activity {
                 } else {
                     view.evaluateJavascript(HASH_HISTORY_JS, null);
                     view.evaluateJavascript(EXPORT_JS, null);
+                    view.evaluateJavascript(MUSIC_SYNC_JS, null);
                     view.evaluateJavascript(
                         "(function(){var s=document.createElement('style');s.textContent='html,body{overscroll-behavior:none;}';document.head.appendChild(s);})();", null);
                     checkUpdate();
@@ -349,7 +368,137 @@ public class MainActivity extends Activity {
         }
     }
 
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (mediaPlayer != null && mediaPlayer.isPlaying()) {
+            mediaPlayer.pause();
+            musicPausedByLifecycle = true;
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (mediaPlayer != null && musicPausedByLifecycle) {
+            mediaPlayer.start();
+            musicPausedByLifecycle = false;
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (mediaPlayer != null) {
+            mediaPlayer.release();
+            mediaPlayer = null;
+        }
+    }
+
+    private void initMediaPlayer() {
+        if (mediaPlayer != null) return;
+        try {
+            mediaPlayer = new MediaPlayer();
+            mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
+            mediaPlayer.setLooping(true);
+            AssetFileDescriptor afd = getResources().openRawResourceFd(R.raw.bg_music);
+            mediaPlayer.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
+            afd.close();
+            mediaPlayer.prepare();
+        } catch (Exception e) {
+            mediaPlayer = null;
+        }
+    }
+
+    private void playMusicUrl(String url) {
+        try {
+            if (mediaPlayer != null) {
+                mediaPlayer.stop();
+                mediaPlayer.reset();
+            } else {
+                mediaPlayer = new MediaPlayer();
+                mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
+                mediaPlayer.setLooping(true);
+            }
+            if (url == null || url.isEmpty()) {
+                AssetFileDescriptor afd = getResources().openRawResourceFd(R.raw.bg_music);
+                mediaPlayer.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
+                afd.close();
+            } else {
+                mediaPlayer.setDataSource(url);
+            }
+            mediaPlayer.prepare();
+            mediaPlayer.start();
+        } catch (Exception e) {
+            mediaPlayer = null;
+        }
+    }
+
     private class WebAppInterface {
+        @JavascriptInterface
+        public void playMusic(String url) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        if (mediaPlayer != null && mediaPlayer.isPlaying()) {
+                            mediaPlayer.pause();
+                            mediaPlayer.stop();
+                            mediaPlayer.reset();
+                        }
+                        if (url == null || url.isEmpty()) {
+                            initMediaPlayer();
+                            if (mediaPlayer != null) mediaPlayer.start();
+                        } else {
+                            playMusicUrl(url);
+                        }
+                    } catch (Exception e) {
+                        mediaPlayer = null;
+                    }
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void pauseMusic() {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        if (mediaPlayer != null && mediaPlayer.isPlaying()) {
+                            mediaPlayer.pause();
+                        }
+                    } catch (Exception e) { }
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void resumeMusic() {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        if (mediaPlayer == null) {
+                            initMediaPlayer();
+                        }
+                        if (mediaPlayer != null && !mediaPlayer.isPlaying()) {
+                            mediaPlayer.start();
+                        }
+                    } catch (Exception e) { }
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public String isMusicPlaying() {
+            try {
+                return (mediaPlayer != null && mediaPlayer.isPlaying()) ? "true" : "false";
+            } catch (Exception e) {
+                return "false";
+            }
+        }
+
         @JavascriptInterface
         public void exportHTML(String html) {
             try {
