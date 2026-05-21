@@ -32,7 +32,7 @@ public class MainActivity extends Activity {
         "function leave(){_depth--;}" +
         "function top(){return _depth===1;}" +
         "function pushHash(h){" +
-        "if(!_busy&&location.hash!==h)location.hash=h;" +
+        "if(!_busy&&location.hash!==h)history.pushState(null,'',h);" +
         "}" +
         // Wrap openMemberDetail - only outermost call pushes hash
         "openMemberDetail=function(id){" +
