@@ -103,6 +103,15 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    public void onBackPressed() {
+        if (webView.canGoBack()) {
+            webView.goBack();
+        } else {
+            super.onBackPressed();
+        }
+    }
+
+    @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_BACK && webView.canGoBack()) {
             webView.goBack();
