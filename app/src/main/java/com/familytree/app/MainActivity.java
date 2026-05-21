@@ -39,7 +39,7 @@ public class MainActivity extends Activity {
     private boolean updateChecked = false;
     private long lastBackTime = 0;
     private ValueCallback<Uri[]> fileChooserCallback;
-    private static final int VERSION_CODE = 11;
+    private static final int VERSION_CODE = 12;
     private static final String HOME_URL = "https://zhushisanxiangfangfamily.github.io/family-tree-test/";
     private static final String VERSION_URL = "https://raw.githubusercontent.com/zhushisanxiangfangfamily/family-tree-app/master/version.txt";
     private static final String DOWNLOAD_URL = "https://github.com/zhushisanxiangfangfamily/family-tree-app/releases";
