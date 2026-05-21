@@ -30,8 +30,8 @@ public class MainActivity extends Activity {
     private boolean unlocked = false;
     private boolean updateChecked = false;
     private long lastBackTime = 0;
-    private static final int VERSION_CODE = 9;
-    private static final String HOME_URL = "https://zhushisanxiangfangfamily.github.io/family-tree/";
+    private static final int VERSION_CODE = 10;
+    private static final String HOME_URL = "https://zhushisanxiangfangfamily.github.io/family-tree-test/";
     private static final String VERSION_URL = "https://raw.githubusercontent.com/zhushisanxiangfangfamily/family-tree-app/master/version.txt";
     private static final String DOWNLOAD_URL = "https://github.com/zhushisanxiangfangfamily/family-tree-app/releases";
 
