@@ -15,6 +15,7 @@ import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.webkit.ValueCallback;
 import android.webkit.WebViewClient;
 import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
@@ -37,6 +38,7 @@ public class MainActivity extends Activity {
     private boolean unlocked = false;
     private boolean updateChecked = false;
     private long lastBackTime = 0;
+    private ValueCallback<Uri[]> fileChooserCallback;
     private static final int VERSION_CODE = 11;
     private static final String HOME_URL = "https://zhushisanxiangfangfamily.github.io/family-tree-test/";
     private static final String VERSION_URL = "https://raw.githubusercontent.com/zhushisanxiangfangfamily/family-tree-app/master/version.txt";
@@ -218,6 +220,16 @@ public class MainActivity extends Activity {
                     progressBar.setVisibility(View.GONE);
                 }
             }
+
+            @Override
+            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
+                fileChooserCallback = callback;
+                Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("image/*");
+                startActivityForResult(Intent.createChooser(intent, "选择图片"), 1);
+                return true;
+            }
         });
 
         webView.addJavascriptInterface(new WebAppInterface(), "Android");
@@ -303,6 +315,19 @@ public class MainActivity extends Activity {
             }
         }
         return super.onKeyDown(keyCode, event);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == 1 && fileChooserCallback != null) {
+            Uri[] results = null;
+            if (resultCode == Activity.RESULT_OK && data != null && data.getData() != null) {
+                results = new Uri[]{data.getData()};
+            }
+            fileChooserCallback.onReceiveValue(results);
+            fileChooserCallback = null;
+        }
     }
 
     private class WebAppInterface {
