@@ -32,7 +32,12 @@ public class MainActivity extends Activity {
         "function leave(){_depth--;}" +
         "function top(){return _depth===1;}" +
         "function pushHash(h){" +
-        "if(!_busy&&location.hash!==h)history.pushState(null,'',h);" +
+        "if(!_busy&&location.hash!==h){" +
+        "var cur=location.hash.replace('#','');" +
+        "if(cur.indexOf('member-')===0||cur.indexOf('modal-')===0){" +
+        "history.replaceState(null,'',h);" +
+        "}else{history.pushState(null,'',h);}" +
+        "}" +
         "}" +
         // Wrap openMemberDetail - only outermost call pushes hash
         "openMemberDetail=function(id){" +
