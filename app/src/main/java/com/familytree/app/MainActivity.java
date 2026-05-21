@@ -26,7 +26,7 @@ public class MainActivity extends Activity {
 
     private static final String HASH_HISTORY_JS =
         "(function(){" +
-        "var _openMemberDetail=openMemberDetail,_openModal=openModal,_closeModal=closeModal;" +
+        "var _openMemberDetail=openMemberDetail,_openModal=openModal;" +
         "var _busy=false,_depth=0;" +
         "function enter(){_depth++;}" +
         "function leave(){_depth--;}" +
@@ -36,22 +36,20 @@ public class MainActivity extends Activity {
         "}" +
         // Wrap openMemberDetail - only outermost call pushes hash
         "openMemberDetail=function(id){" +
-        "if(_busy)return;" +
         "enter();" +
         "_openMemberDetail(id);" +
-        "if(top())pushHash('#member-'+id);" +
+        "if(top()&&!_busy)pushHash('#member-'+id);" +
         "leave();" +
         "};" +
         // Wrap openModal - only push if called directly (not from openMemberDetail)
         "openModal=function(id){" +
-        "if(_busy)return;" +
         "enter();" +
         "_openModal(id);" +
-        "if(top())pushHash('#modal-'+id);" +
+        "if(top()&&!_busy)pushHash('#modal-'+id);" +
         "leave();" +
         "};" +
         // Replace closeModal with history.back
-        "closeModal=function(id){if(!_busy)history.back();};" +
+        "closeModal=function(id){history.back();};" +
         // Handle hash change
         "window.addEventListener('hashchange',function(){" +
         "_busy=true;" +
