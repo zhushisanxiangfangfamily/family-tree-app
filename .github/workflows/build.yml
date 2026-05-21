@@ -22,7 +22,16 @@ jobs:
         with:
           gradle-version: 8.5
 
+      - name: Decode keystore
+        env:
+          SIGNING_KEYSTORE: ${{ secrets.SIGNING_KEYSTORE }}
+        run: echo "$SIGNING_KEYSTORE" | base64 -d > family-tree.keystore
+
       - name: Build debug APK
+        env:
+          SIGNING_KEYSTORE_PASSWORD: ${{ secrets.SIGNING_KEYSTORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
         run: gradle assembleDebug
 
       - name: Upload APK

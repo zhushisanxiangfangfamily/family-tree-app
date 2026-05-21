@@ -10,12 +10,25 @@ android {
         applicationId "com.familytree.app"
         minSdk 21
         targetSdk 34
-        versionCode 16
-        versionName "1.6"
+        versionCode 17
+        versionName "1.7"
+    }
+
+    signingConfigs {
+        release {
+            storeFile file("${rootDir}/family-tree.keystore")
+            storePassword System.getenv("SIGNING_KEYSTORE_PASSWORD") ?: "FamilyTree2024!"
+            keyAlias System.getenv("SIGNING_KEY_ALIAS") ?: "familytree"
+            keyPassword System.getenv("SIGNING_KEY_PASSWORD") ?: "FamilyTree2024!"
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfig signingConfigs.release
+        }
         release {
+            signingConfig signingConfigs.release
             minifyEnabled true
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt")
         }

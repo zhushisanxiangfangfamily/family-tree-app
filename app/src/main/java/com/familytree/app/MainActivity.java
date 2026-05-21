@@ -39,7 +39,7 @@ public class MainActivity extends Activity {
     private boolean unlocked = false;
     private long lastBackTime = 0;
     private ValueCallback<Uri[]> fileChooserCallback;
-    private static final int VERSION_CODE = 16;
+    private static final int VERSION_CODE = 17;
     private static final String HOME_URL = "https://zhushisanxiangfangfamily.github.io/family-tree-test/";
     private static final String VERSION_URL = "https://raw.githubusercontent.com/zhushisanxiangfangfamily/family-tree-app/master/version.txt";
     private static final String UPDATE_APK_URL = "https://github.com/zhushisanxiangfangfamily/family-tree-app/releases/latest/download/app-debug.apk";
@@ -292,6 +292,7 @@ public class MainActivity extends Activity {
             DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
             dm.enqueue(request);
             Toast.makeText(this, "正在下载，请在通知栏查看进度，下载完成后点击安装", Toast.LENGTH_LONG).show();
+            finish();
         } catch (Exception e) {
             Toast.makeText(this, "下载失败，请检查网络后重试", Toast.LENGTH_SHORT).show();
         }
