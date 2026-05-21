@@ -26,23 +26,79 @@ public class MainActivity extends Activity {
 
     private static final String HASH_HISTORY_JS =
         "(function(){" +
-        "var _showPage=showPage;" +
-        "var _locked=false;" +
+        "var _showPage=showPage,_renderFamilyView=renderFamilyView," +
+        "_openMemberDetail=openMemberDetail,_openModal=openModal," +
+        "_closeModal=closeModal;" +
+        "var _depth=0,_restoring=false;" +
+        "function enter(){_depth++;}" +
+        "function leave(){_depth--;}" +
+        "function top(){return _depth===1;}" +
+        "function setHash(h){" +
+        "if(!_restoring&&location.hash!==h)location.hash=h;" +
+        "}" +
+        // Wrap showPage for tab navigation
         "showPage=function(id){" +
-        "if(_locked)return;" +
-        "_locked=true;" +
-        "if(location.hash!=='#'+id)location.hash='#'+id;" +
+        "enter();" +
         "_showPage(id);" +
-        "setTimeout(function(){_locked=false;},100);" +
+        "if(top()&&!_restoring)setHash('#'+id);" +
+        "leave();" +
         "};" +
+        // Wrap renderFamilyView
+        "renderFamilyView=function(pid){" +
+        "enter();" +
+        "_renderFamilyView(pid);" +
+        "if(top()&&!_restoring)setHash('#family-'+pid);" +
+        "leave();" +
+        "};" +
+        // Wrap openMemberDetail
+        "openMemberDetail=function(id){" +
+        "enter();" +
+        "_openMemberDetail(id);" +
+        "if(top()&&!_restoring)setHash('#member-'+id);" +
+        "leave();" +
+        "};" +
+        // Wrap openModal
+        "openModal=function(id){" +
+        "enter();" +
+        "_openModal(id);" +
+        "if(top()&&!_restoring)setHash('#modal-'+id);" +
+        "leave();" +
+        "};" +
+        // Replace closeModal: go back if we pushed history, otherwise just close
+        "closeModal=function(id){" +
+        "var h=location.hash.replace('#','');" +
+        "if(!h||h==='home'||h==='tree'||h==='members'||h==='stories'){" +
+        "_closeModal(id);" +
+        "}else{history.back();}" +
+        "};" +
+        // Handle hash change (back/forward)
         "window.addEventListener('hashchange',function(){" +
-        "var p=location.hash.replace('#','');" +
-        "if(p&&!_locked)_showPage(p);" +
+        "if(_restoring)return;" +
+        "_restoring=true;" +
+        // Close any open modals
+        "document.querySelectorAll('.modal-overlay.open').forEach(function(m){" +
+        "m.classList.remove('open');" +
         "});" +
+        "var h=location.hash.replace('#','');" +
+        "if(h==='home'||h==='tree'||h==='members'||h==='stories'){" +
+        "_showPage(h);" +
+        "}else if(h.indexOf('family-')===0){" +
+        "var pid=parseInt(h.replace('family-',''));" +
+        "_showPage('tree');" +
+        "_renderFamilyView(pid);" +
+        "}else if(h.indexOf('member-')===0){" +
+        "var mid=parseInt(h.replace('member-',''));" +
+        "_showPage('tree');" +
+        "_openMemberDetail(mid);" +
+        "}else if(h.indexOf('modal-')===0){" +
+        "_openModal(h.replace('modal-',''));" +
+        "}" +
+        "setTimeout(function(){_restoring=false;},100);" +
+        "});" +
+        // Set initial hash
         "var el=document.querySelector('.page.active');" +
         "if(el&&el.id&&!location.hash){" +
-        "var pn=el.id.replace('page-','');" +
-        "history.replaceState(null,'','#'+pn);" +
+        "history.replaceState(null,'','#'+el.id.replace('page-',''));" +
         "}" +
         "})();";
 
