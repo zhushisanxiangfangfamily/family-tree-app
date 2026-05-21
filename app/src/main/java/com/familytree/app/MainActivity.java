@@ -1,8 +1,11 @@
 package com.familytree.app;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -15,14 +18,22 @@ import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 public class MainActivity extends Activity {
     private WebView webView;
     private ProgressBar progressBar;
     private TextView backBtn;
     private boolean unlocked = false;
+    private boolean updateChecked = false;
     private long lastBackTime = 0;
+    private static final int VERSION_CODE = 9;
     private static final String HOME_URL = "https://zhushisanxiangfangfamily.github.io/family-tree/";
+    private static final String VERSION_URL = "https://raw.githubusercontent.com/zhushisanxiangfangfamily/family-tree-app/master/version.txt";
+    private static final String DOWNLOAD_URL = "https://github.com/zhushisanxiangfangfamily/family-tree-app/releases";
 
     private static final String HASH_HISTORY_JS =
         "(function(){" +
@@ -171,6 +182,10 @@ public class MainActivity extends Activity {
                         "sessionStorage.setItem('ft_unlocked','1');location.reload();", null);
                 } else {
                     view.evaluateJavascript(HASH_HISTORY_JS, null);
+                    if (!updateChecked) {
+                        updateChecked = true;
+                        checkUpdate();
+                    }
                 }
             }
         });
@@ -188,6 +203,51 @@ public class MainActivity extends Activity {
         });
 
         webView.loadUrl(HOME_URL);
+    }
+
+    private void checkUpdate() {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    URL url = new URL(VERSION_URL);
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setConnectTimeout(5000);
+                    conn.setReadTimeout(5000);
+                    BufferedReader reader = new BufferedReader(
+                            new InputStreamReader(conn.getInputStream()));
+                    String line = reader.readLine();
+                    reader.close();
+                    conn.disconnect();
+                    final int remoteVersion = Integer.parseInt(line.trim());
+                    if (remoteVersion > VERSION_CODE) {
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                showUpdateDialog();
+                            }
+                        });
+                    }
+                } catch (Exception e) {
+                    // Network error or no version file, silently skip
+                }
+            }
+        }).start();
+    }
+
+    private void showUpdateDialog() {
+        new AlertDialog.Builder(this)
+            .setTitle("发现新版本")
+            .setMessage("家族族谱 App 有新版本可用，是否前往下载？")
+            .setPositiveButton("前往下载", new android.content.DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(android.content.DialogInterface dialog, int which) {
+                    Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(DOWNLOAD_URL));
+                    startActivity(intent);
+                }
+            })
+            .setNegativeButton("稍后再说", null)
+            .show();
     }
 
     @Override
