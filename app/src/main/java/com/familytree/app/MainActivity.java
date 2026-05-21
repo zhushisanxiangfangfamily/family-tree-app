@@ -44,7 +44,7 @@ public class MainActivity extends Activity {
     private boolean unlocked = false;
     private long lastBackTime = 0;
     private ValueCallback<Uri[]> fileChooserCallback;
-    private static final int VERSION_CODE = 22;
+    private static final int VERSION_CODE = 23;
     private static final String HOME_URL = "https://zhushisanxiangfangfamily.github.io/family-tree-test/";
     private static final String VERSION_URL = "https://raw.githubusercontent.com/zhushisanxiangfangfamily/family-tree-app/master/version.txt";
     private static final String UPDATE_APK_URL = "https://github.com/zhushisanxiangfangfamily/family-tree-app/releases/latest/download/app-debug.apk";
@@ -424,11 +424,18 @@ public class MainActivity extends Activity {
                 AssetFileDescriptor afd = getResources().openRawResourceFd(R.raw.bg_music);
                 mediaPlayer.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
                 afd.close();
+                mediaPlayer.prepare();
+                mediaPlayer.start();
             } else {
                 mediaPlayer.setDataSource(url);
+                mediaPlayer.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
+                    @Override
+                    public void onPrepared(MediaPlayer mp) {
+                        mp.start();
+                    }
+                });
+                mediaPlayer.prepareAsync();
             }
-            mediaPlayer.prepare();
-            mediaPlayer.start();
         } catch (Exception e) {
             mediaPlayer = null;
         }
