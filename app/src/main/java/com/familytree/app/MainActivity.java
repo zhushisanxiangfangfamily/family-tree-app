@@ -39,7 +39,7 @@ public class MainActivity extends Activity {
     private boolean unlocked = false;
     private long lastBackTime = 0;
     private ValueCallback<Uri[]> fileChooserCallback;
-    private static final int VERSION_CODE = 13;
+    private static final int VERSION_CODE = 14;
     private static final String HOME_URL = "https://zhushisanxiangfangfamily.github.io/family-tree-test/";
     private static final String VERSION_URL = "https://raw.githubusercontent.com/zhushisanxiangfangfamily/family-tree-app/master/version.txt";
     private static final String UPDATE_APK_URL = "https://github.com/zhushisanxiangfangfamily/family-tree-app/releases/latest/download/app-debug.apk";
@@ -267,7 +267,7 @@ public class MainActivity extends Activity {
     private void showUpdateDialog() {
         new AlertDialog.Builder(this)
             .setTitle("发现新版本（V" + VERSION_CODE + " → 最新版）")
-            .setMessage("家族族谱 App 有新版本可用，更新后才能继续使用。\n\n点击"立即更新"将自动下载并安装。")
+            .setMessage("家族族谱 App 有新版本可用，更新后才能继续使用。\n\n点击「立即更新」将自动下载并安装。")
             .setCancelable(false)
             .setPositiveButton("立即更新", new android.content.DialogInterface.OnClickListener() {
                 @Override
