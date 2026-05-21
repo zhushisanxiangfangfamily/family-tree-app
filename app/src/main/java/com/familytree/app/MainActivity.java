@@ -7,9 +7,11 @@ import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -19,9 +21,14 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 
 public class MainActivity extends Activity {
     private WebView webView;
@@ -30,10 +37,30 @@ public class MainActivity extends Activity {
     private boolean unlocked = false;
     private boolean updateChecked = false;
     private long lastBackTime = 0;
-    private static final int VERSION_CODE = 10;
+    private static final int VERSION_CODE = 11;
     private static final String HOME_URL = "https://zhushisanxiangfangfamily.github.io/family-tree-test/";
     private static final String VERSION_URL = "https://raw.githubusercontent.com/zhushisanxiangfangfamily/family-tree-app/master/version.txt";
     private static final String DOWNLOAD_URL = "https://github.com/zhushisanxiangfangfamily/family-tree-app/releases";
+
+    private static final String HIDE_ADMIN_JS =
+        "(function(){" +
+        "var ab=document.getElementById('admin-btn');" +
+        "if(ab)ab.style.display='none';" +
+        "document.body.classList.remove('admin-mode');" +
+        "window.isAdmin=false;" +
+        "window.doLogin=function(){alert('此版本不支持管理员功能');};" +
+        "window.handleAdminBtn=function(){alert('此版本不支持管理员功能');};" +
+        "})();";
+
+    private static final String EXPORT_JS =
+        "(function(){" +
+        "var _orig=downloadExportedFile;" +
+        "downloadExportedFile=function(html){" +
+        "if(window.Android){" +
+        "Android.exportHTML(html);" +
+        "}else{_orig(html);}" +
+        "};" +
+        "})();";
 
     private static final String HASH_HISTORY_JS =
         "(function(){" +
@@ -182,6 +209,10 @@ public class MainActivity extends Activity {
                         "sessionStorage.setItem('ft_unlocked','1');location.reload();", null);
                 } else {
                     view.evaluateJavascript(HASH_HISTORY_JS, null);
+                    view.evaluateJavascript(EXPORT_JS, null);
+                    if (!BuildConfig.ENABLE_ADMIN) {
+                        view.evaluateJavascript(HIDE_ADMIN_JS, null);
+                    }
                     if (!updateChecked) {
                         updateChecked = true;
                         checkUpdate();
@@ -201,6 +232,8 @@ public class MainActivity extends Activity {
                 }
             }
         });
+
+        webView.addJavascriptInterface(new WebAppInterface(), "Android");
 
         webView.loadUrl(HOME_URL);
     }
@@ -283,5 +316,33 @@ public class MainActivity extends Activity {
             }
         }
         return super.onKeyDown(keyCode, event);
+    }
+
+    private class WebAppInterface {
+        @JavascriptInterface
+        public void exportHTML(String html) {
+            try {
+                File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                String filename = "族谱_" + new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date()) + ".html";
+                File file = new File(dir, filename);
+                FileOutputStream fos = new FileOutputStream(file);
+                fos.write(html.getBytes("UTF-8"));
+                fos.close();
+                final String path = file.getAbsolutePath();
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(MainActivity.this, "族谱已导出到 " + path, Toast.LENGTH_LONG).show();
+                    }
+                });
+            } catch (Exception e) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(MainActivity.this, "导出失败：" + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+        }
     }
 }
