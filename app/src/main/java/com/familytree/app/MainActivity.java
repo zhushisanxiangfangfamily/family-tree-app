@@ -26,79 +26,51 @@ public class MainActivity extends Activity {
 
     private static final String HASH_HISTORY_JS =
         "(function(){" +
-        "var _showPage=showPage,_renderFamilyView=renderFamilyView," +
-        "_openMemberDetail=openMemberDetail,_openModal=openModal," +
-        "_closeModal=closeModal;" +
-        "var _depth=0,_restoring=false;" +
+        "var _openMemberDetail=openMemberDetail,_openModal=openModal,_closeModal=closeModal;" +
+        "var _busy=false,_depth=0;" +
         "function enter(){_depth++;}" +
         "function leave(){_depth--;}" +
         "function top(){return _depth===1;}" +
-        "function setHash(h){" +
-        "if(!_restoring&&location.hash!==h)location.hash=h;" +
+        "function pushHash(h){" +
+        "if(!_busy&&location.hash!==h)location.hash=h;" +
         "}" +
-        // Wrap showPage for tab navigation
-        "showPage=function(id){" +
-        "enter();" +
-        "_showPage(id);" +
-        "if(top()&&!_restoring)setHash('#'+id);" +
-        "leave();" +
-        "};" +
-        // Wrap renderFamilyView
-        "renderFamilyView=function(pid){" +
-        "enter();" +
-        "_renderFamilyView(pid);" +
-        "if(top()&&!_restoring)setHash('#family-'+pid);" +
-        "leave();" +
-        "};" +
-        // Wrap openMemberDetail
+        // Wrap openMemberDetail - only outermost call pushes hash
         "openMemberDetail=function(id){" +
+        "if(_busy)return;" +
         "enter();" +
         "_openMemberDetail(id);" +
-        "if(top()&&!_restoring)setHash('#member-'+id);" +
+        "if(top())pushHash('#member-'+id);" +
         "leave();" +
         "};" +
-        // Wrap openModal
+        // Wrap openModal - only push if called directly (not from openMemberDetail)
         "openModal=function(id){" +
+        "if(_busy)return;" +
         "enter();" +
         "_openModal(id);" +
-        "if(top()&&!_restoring)setHash('#modal-'+id);" +
+        "if(top())pushHash('#modal-'+id);" +
         "leave();" +
         "};" +
-        // Replace closeModal: go back if we pushed history, otherwise just close
-        "closeModal=function(id){" +
-        "var h=location.hash.replace('#','');" +
-        "if(!h||h==='home'||h==='tree'||h==='members'||h==='stories'){" +
-        "_closeModal(id);" +
-        "}else{history.back();}" +
-        "};" +
-        // Handle hash change (back/forward)
+        // Replace closeModal with history.back
+        "closeModal=function(id){if(!_busy)history.back();};" +
+        // Handle hash change
         "window.addEventListener('hashchange',function(){" +
-        "if(_restoring)return;" +
-        "_restoring=true;" +
-        // Close any open modals
+        "_busy=true;" +
+        // Close all open modals
         "document.querySelectorAll('.modal-overlay.open').forEach(function(m){" +
         "m.classList.remove('open');" +
         "});" +
         "var h=location.hash.replace('#','');" +
-        "if(h==='home'||h==='tree'||h==='members'||h==='stories'){" +
-        "_showPage(h);" +
-        "}else if(h.indexOf('family-')===0){" +
-        "var pid=parseInt(h.replace('family-',''));" +
-        "_showPage('tree');" +
-        "_renderFamilyView(pid);" +
-        "}else if(h.indexOf('member-')===0){" +
-        "var mid=parseInt(h.replace('member-',''));" +
-        "_showPage('tree');" +
-        "_openMemberDetail(mid);" +
+        "if(h.indexOf('member-')===0){" +
+        "_openMemberDetail(parseInt(h.replace('member-','')));" +
         "}else if(h.indexOf('modal-')===0){" +
         "_openModal(h.replace('modal-',''));" +
         "}" +
-        "setTimeout(function(){_restoring=false;},100);" +
+        "setTimeout(function(){_busy=false;},50);" +
         "});" +
         // Set initial hash
+        "if(!location.hash){" +
         "var el=document.querySelector('.page.active');" +
-        "if(el&&el.id&&!location.hash){" +
-        "history.replaceState(null,'','#'+el.id.replace('page-',''));" +
+        "if(el&&el.id)history.replaceState(null,'','#'+el.id.replace('page-',''));" +
         "}" +
         "})();";
 
