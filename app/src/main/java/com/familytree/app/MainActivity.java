@@ -42,16 +42,6 @@ public class MainActivity extends Activity {
     private static final String VERSION_URL = "https://raw.githubusercontent.com/zhushisanxiangfangfamily/family-tree-app/master/version.txt";
     private static final String DOWNLOAD_URL = "https://github.com/zhushisanxiangfangfamily/family-tree-app/releases";
 
-    private static final String HIDE_ADMIN_JS =
-        "(function(){" +
-        "var ab=document.getElementById('admin-btn');" +
-        "if(ab)ab.style.display='none';" +
-        "document.body.classList.remove('admin-mode');" +
-        "window.isAdmin=false;" +
-        "window.doLogin=function(){alert('此版本不支持管理员功能');};" +
-        "window.handleAdminBtn=function(){alert('此版本不支持管理员功能');};" +
-        "})();";
-
     private static final String EXPORT_JS =
         "(function(){" +
         "var _orig=downloadExportedFile;" +
@@ -210,9 +200,6 @@ public class MainActivity extends Activity {
                 } else {
                     view.evaluateJavascript(HASH_HISTORY_JS, null);
                     view.evaluateJavascript(EXPORT_JS, null);
-                    if (!BuildConfig.ENABLE_ADMIN) {
-                        view.evaluateJavascript(HIDE_ADMIN_JS, null);
-                    }
                     if (!updateChecked) {
                         updateChecked = true;
                         checkUpdate();

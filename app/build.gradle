@@ -14,22 +14,6 @@ android {
         versionName "1.1"
     }
 
-    flavorDimensions = ["edition"]
-    productFlavors {
-        admin {
-            dimension "edition"
-            applicationIdSuffix ".admin"
-            versionNameSuffix "-admin"
-            buildConfigField "boolean", "ENABLE_ADMIN", "true"
-        }
-        public {
-            dimension "edition"
-            applicationIdSuffix ".public"
-            versionNameSuffix "-public"
-            buildConfigField "boolean", "ENABLE_ADMIN", "false"
-        }
-    }
-
     buildTypes {
         release {
             minifyEnabled true
