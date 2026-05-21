@@ -14,7 +14,7 @@ android {
         versionName "1.1"
     }
 
-    flavorDimensions "edition"
+    flavorDimensions = ["edition"]
     productFlavors {
         admin {
             dimension "edition"
