@@ -1,15 +1,18 @@
 package com.familytree.app;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.DownloadManager;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.res.AssetFileDescriptor;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.view.Gravity;
@@ -20,6 +23,7 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.ValueCallback;
+import android.webkit.PermissionRequest;
 import android.webkit.WebViewClient;
 import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
@@ -29,11 +33,13 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class MainActivity extends Activity {
     private WebView webView;
@@ -44,7 +50,7 @@ public class MainActivity extends Activity {
     private boolean unlocked = false;
     private long lastBackTime = 0;
     private ValueCallback<Uri[]> fileChooserCallback;
-    private static final int VERSION_CODE = 23;
+    private static final int VERSION_CODE = 31;
     private static final String HOME_URL = "https://zhushisanxiangfangfamily.github.io/family-tree-test/";
     private static final String VERSION_URL = "https://raw.githubusercontent.com/zhushisanxiangfangfamily/family-tree-app/master/version.txt";
     private static final String UPDATE_APK_URL = "https://github.com/zhushisanxiangfangfamily/family-tree-app/releases/latest/download/app-debug.apk";
@@ -61,15 +67,7 @@ public class MainActivity extends Activity {
 
     private static final String MUSIC_SYNC_JS =
         "(function(){" +
-        "var cfg=JSON.parse(localStorage.getItem('ft_config')||'{}');" +
-        "if(window.Android){" +
-        "if(cfg.musicEnabled!==false){" +
-        "var p=Android.isMusicPlaying();" +
-        "if(p!=='true')Android.playMusic(cfg.musicUrl||'');" +
-        "}else{" +
-        "Android.pauseMusic();" +
-        "}" +
-        "}" +
+        "if(typeof syncMusicState==='function')syncMusicState();" +
         "})();";
 
     private static final String HASH_HISTORY_JS =
@@ -128,7 +126,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().getDecorView().setBackgroundColor(Color.TRANSPARENT);
+        getWindow().getDecorView().setBackgroundColor(Color.parseColor("#FFF8E7"));
 
         float density = getResources().getDisplayMetrics().density;
 
@@ -136,7 +134,7 @@ public class MainActivity extends Activity {
         layout.setLayoutParams(new RelativeLayout.LayoutParams(
                 RelativeLayout.LayoutParams.MATCH_PARENT,
                 RelativeLayout.LayoutParams.MATCH_PARENT));
-        layout.setBackgroundColor(Color.TRANSPARENT);
+        layout.setBackgroundColor(Color.parseColor("#FFF8E7"));
 
         webView = new WebView(this);
         RelativeLayout.LayoutParams wvParams = new RelativeLayout.LayoutParams(
@@ -188,9 +186,11 @@ public class MainActivity extends Activity {
         settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         settings.setUserAgentString(settings.getUserAgentString() + " FamilyTreeApp/1.0");
+        settings.setUseWideViewPort(true);
+        settings.setLoadWithOverviewMode(true);
 
         webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        webView.setBackgroundColor(Color.TRANSPARENT);
+        webView.setBackgroundColor(Color.parseColor("#FFF8E7"));
         webView.clearCache(true);
 
         webView.setWebViewClient(new WebViewClient() {
@@ -220,8 +220,9 @@ public class MainActivity extends Activity {
                 if (!unlocked) {
                     unlocked = true;
                     view.evaluateJavascript(
-                        "sessionStorage.setItem('ft_unlocked','1');location.reload();", null);
-                } else {
+                        "sessionStorage.setItem('ft_unlocked','1');localStorage.setItem('ft_unlocked','1');document.getElementById('lock-overlay').classList.add('hidden');", null);
+                }
+                {
                     view.evaluateJavascript(HASH_HISTORY_JS, null);
                     view.evaluateJavascript(EXPORT_JS, null);
                     view.evaluateJavascript(MUSIC_SYNC_JS, null);
@@ -244,6 +245,19 @@ public class MainActivity extends Activity {
             }
 
             @Override
+            public void onPermissionRequest(PermissionRequest request) {
+                // Grant microphone and other audio permissions for voice chat
+                String[] resources = request.getResources();
+                for (String r : resources) {
+                    if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(r)) {
+                        request.grant(request.getResources());
+                        return;
+                    }
+                }
+                request.grant(request.getResources());
+            }
+
+            @Override
             public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
                 fileChooserCallback = callback;
                 Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
@@ -256,7 +270,23 @@ public class MainActivity extends Activity {
 
         webView.addJavascriptInterface(new WebAppInterface(), "Android");
 
+        // Request runtime RECORD_AUDIO permission for voice messages
+        if (Build.VERSION.SDK_INT >= 23) {
+            if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 1001);
+            }
+        }
+
         webView.loadUrl(HOME_URL);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 1001 && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            // Mic permission granted — reload page so WebView can use it
+            if (webView != null) webView.reload();
+        }
     }
 
     private void checkUpdate() {
@@ -405,6 +435,7 @@ public class MainActivity extends Activity {
             mediaPlayer.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
             afd.close();
             mediaPlayer.prepare();
+            mediaPlayer.start();
         } catch (Exception e) {
             mediaPlayer = null;
         }
@@ -413,35 +444,240 @@ public class MainActivity extends Activity {
     private void playMusicUrl(String url) {
         try {
             if (mediaPlayer != null) {
-                mediaPlayer.stop();
-                mediaPlayer.reset();
-            } else {
-                mediaPlayer = new MediaPlayer();
-                mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
-                mediaPlayer.setLooping(true);
+                try { mediaPlayer.stop(); } catch (Exception ignored) {}
+                try { mediaPlayer.reset(); } catch (Exception ignored) {}
+                try { mediaPlayer.release(); } catch (Exception ignored) {}
             }
-            if (url == null || url.isEmpty()) {
-                AssetFileDescriptor afd = getResources().openRawResourceFd(R.raw.bg_music);
-                mediaPlayer.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
-                afd.close();
-                mediaPlayer.prepare();
-                mediaPlayer.start();
-            } else {
-                mediaPlayer.setDataSource(url);
-                mediaPlayer.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
-                    @Override
-                    public void onPrepared(MediaPlayer mp) {
+            mediaPlayer = new MediaPlayer();
+            mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
+            mediaPlayer.setLooping(true);
+            mediaPlayer.setDataSource(url);
+            mediaPlayer.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
+                @Override
+                public void onPrepared(MediaPlayer mp) {
+                    mp.start();
+                }
+            });
+            mediaPlayer.setOnErrorListener(new MediaPlayer.OnErrorListener() {
+                @Override
+                public boolean onError(MediaPlayer mp, int what, int extra) {
+                    try { mp.reset(); } catch (Exception ignored) {}
+                    try {
+                        AssetFileDescriptor afd = getResources().openRawResourceFd(R.raw.bg_music);
+                        mp.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
+                        afd.close();
+                        mp.prepare();
                         mp.start();
+                    } catch (Exception e2) {
+                        mediaPlayer = null;
                     }
-                });
-                mediaPlayer.prepareAsync();
-            }
+                    return true;
+                }
+            });
+            mediaPlayer.prepareAsync();
         } catch (Exception e) {
             mediaPlayer = null;
         }
     }
 
     private class WebAppInterface {
+        private final ConcurrentHashMap<String, String> ghResults = new ConcurrentHashMap<>();
+        private volatile String ghEtag = null;
+        private volatile String ghCachedData = null;
+
+        @JavascriptInterface
+        public String ghGet(String path) {
+            try {
+                String urlStr = "https://api.github.com/repos/zhushisanxiangfangfamily/family-tree-test/contents/" + path + "?ref=master";
+                URL url = new URL(urlStr);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
+                conn.setRequestMethod("GET");
+                conn.setRequestProperty("Authorization", "token " + BuildConfig.GH_TOKEN);
+                conn.setRequestProperty("Accept", "application/vnd.github.v3+json");
+                String etag = ghEtag;
+                if (etag != null) conn.setRequestProperty("If-None-Match", etag);
+                int code = conn.getResponseCode();
+                if (code == 304) {
+                    conn.disconnect();
+                    String cached = ghCachedData;
+                    if (cached != null) return cached;
+                    // No cache — retry without ETag
+                    conn = (HttpURLConnection) new URL(urlStr).openConnection();
+                    conn.setConnectTimeout(5000);
+                    conn.setReadTimeout(5000);
+                    conn.setRequestMethod("GET");
+                    conn.setRequestProperty("Authorization", "token " + BuildConfig.GH_TOKEN);
+                    conn.setRequestProperty("Accept", "application/vnd.github.v3+json");
+                    code = conn.getResponseCode();
+                }
+                if (code == 404) return "{\"ok\":false,\"status\":404}";
+                if (code != 200) return "{\"ok\":false,\"status\":" + code + "}";
+                String newEtag = conn.getHeaderField("ETag");
+                BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), "UTF-8"));
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) sb.append(line);
+                reader.close();
+                conn.disconnect();
+                String result = "{\"ok\":true,\"status\":200,\"data\":" + sb.toString() + "}";
+                if (newEtag != null) {
+                    ghEtag = newEtag;
+                    ghCachedData = result;
+                }
+                return result;
+            } catch (Exception e) {
+                return "{\"ok\":false,\"status\":0,\"error\":\"" + e.getMessage() + "\"}";
+            }
+        }
+
+        // Fetch raw file from raw.githubusercontent.com (CDN, no rate limit, no auth)
+        private volatile String ghRawEtag = null;
+        private volatile String ghRawCachedData = null;
+
+        @JavascriptInterface
+        public String ghRawGet(String path) {
+            try {
+                String urlStr = "https://raw.githubusercontent.com/zhushisanxiangfangfamily/family-tree-test/master/" + path;
+                URL url = new URL(urlStr);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setConnectTimeout(4000);
+                conn.setReadTimeout(4000);
+                conn.setRequestMethod("GET");
+                String etag = ghRawEtag;
+                if (etag != null) conn.setRequestProperty("If-None-Match", etag);
+                int code = conn.getResponseCode();
+                if (code == 304) {
+                    conn.disconnect();
+                    String cached = ghRawCachedData;
+                    if (cached != null) return cached;
+                    conn = (HttpURLConnection) new URL(urlStr).openConnection();
+                    conn.setConnectTimeout(4000);
+                    conn.setReadTimeout(4000);
+                    conn.setRequestMethod("GET");
+                    code = conn.getResponseCode();
+                }
+                if (code == 404) return "{\"ok\":false,\"status\":404}";
+                if (code != 200) return "{\"ok\":false,\"status\":" + code + "}";
+                String newEtag = conn.getHeaderField("ETag");
+                BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), "UTF-8"));
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) sb.append(line);
+                reader.close();
+                conn.disconnect();
+                String result = "{\"ok\":true,\"status\":200,\"data\":\"" + sb.toString().replace("\\", "\\\\").replace("\"", "\\\"") + "\"}";
+                if (newEtag != null) {
+                    ghRawEtag = newEtag;
+                    ghRawCachedData = result;
+                }
+                return result;
+            } catch (Exception e) {
+                return "{\"ok\":false,\"status\":0,\"error\":\"" + e.getMessage() + "\"}";
+            }
+        }
+
+        @JavascriptInterface
+        public String ghPut(String path, String content, String sha, String message) {
+            try {
+                String urlStr = "https://api.github.com/repos/zhushisanxiangfangfamily/family-tree-test/contents/" + path;
+                URL url = new URL(urlStr);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setConnectTimeout(8000);
+                conn.setReadTimeout(8000);
+                conn.setRequestMethod("PUT");
+                conn.setRequestProperty("Authorization", "token " + BuildConfig.GH_TOKEN);
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setRequestProperty("Accept", "application/vnd.github.v3+json");
+                conn.setRequestProperty("Connection", "close");
+                conn.setDoOutput(true);
+                StringBuilder body = new StringBuilder();
+                body.append("{\"message\":\"").append(message.replace("\"", "\\\""))
+                    .append("\",\"content\":\"").append(content)
+                    .append("\",\"branch\":\"master\"");
+                if (sha != null && !sha.isEmpty()) {
+                    body.append(",\"sha\":\"").append(sha).append("\"");
+                }
+                body.append("}");
+                OutputStream os = conn.getOutputStream();
+                os.write(body.toString().getBytes("UTF-8"));
+                os.close();
+                int code = conn.getResponseCode();
+                if (code < 200 || code >= 300) {
+                    return "{\"ok\":false,\"status\":" + code + "}";
+                }
+                BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), "UTF-8"));
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) sb.append(line);
+                reader.close();
+                conn.disconnect();
+                return "{\"ok\":true,\"status\":" + code + ",\"data\":" + sb.toString() + "}";
+            } catch (Exception e) {
+                return "{\"ok\":false,\"status\":0,\"error\":\"" + e.getMessage() + "\"}";
+            }
+        }
+
+        @JavascriptInterface
+        public void ghRawGetAsync(final String path, final String callbackId) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    final String result = ghRawGet(path);
+                    ghResults.put(callbackId, result);
+                    webView.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            webView.evaluateJavascript(
+                                "if(window._ghCb)window._ghCb('" + callbackId + "')", null);
+                        }
+                    });
+                }
+            }).start();
+        }
+
+        @JavascriptInterface
+        public void ghGetAsync(final String path, final String callbackId) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    final String result = ghGet(path);
+                    ghResults.put(callbackId, result);
+                    webView.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            webView.evaluateJavascript(
+                                "if(window._ghCb)window._ghCb('" + callbackId + "')", null);
+                        }
+                    });
+                }
+            }).start();
+        }
+
+        @JavascriptInterface
+        public void ghPutAsync(final String path, final String content, final String sha, final String message, final String callbackId) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    final String result = ghPut(path, content, sha, message);
+                    ghResults.put(callbackId, result);
+                    webView.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            webView.evaluateJavascript(
+                                "if(window._ghCb)window._ghCb('" + callbackId + "')", null);
+                        }
+                    });
+                }
+            }).start();
+        }
+
+        @JavascriptInterface
+        public String ghTakeResult(String callbackId) {
+            return ghResults.remove(callbackId);
+        }
+
         @JavascriptInterface
         public void playMusic(String url) {
             runOnUiThread(new Runnable() {
@@ -449,18 +685,21 @@ public class MainActivity extends Activity {
                 public void run() {
                     try {
                         if (mediaPlayer != null && mediaPlayer.isPlaying()) {
-                            mediaPlayer.pause();
-                            mediaPlayer.stop();
-                            mediaPlayer.reset();
-                        }
-                        if (url == null || url.isEmpty()) {
-                            initMediaPlayer();
-                            if (mediaPlayer != null) mediaPlayer.start();
-                        } else {
-                            playMusicUrl(url);
+                            return;
                         }
                     } catch (Exception e) {
                         mediaPlayer = null;
+                    }
+                    if (mediaPlayer != null) {
+                        try { mediaPlayer.stop(); } catch (Exception ignored) {}
+                        try { mediaPlayer.reset(); } catch (Exception ignored) {}
+                        try { mediaPlayer.release(); } catch (Exception ignored) {}
+                        mediaPlayer = null;
+                    }
+                    if (url == null || url.isEmpty()) {
+                        initMediaPlayer();
+                    } else {
+                        playMusicUrl(url);
                     }
                 }
             });

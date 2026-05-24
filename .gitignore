@@ -1,1 +1,7 @@
 family-tree.keystore
+*.zip
+.gradle/
+app/build/
+*.apk
+!三厢房族谱-v*.apk
+local.properties
