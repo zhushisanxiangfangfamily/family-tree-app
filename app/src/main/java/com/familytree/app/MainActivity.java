@@ -482,11 +482,13 @@ public class MainActivity extends Activity {
 
     private class WebAppInterface {
         private final ConcurrentHashMap<String, String> ghResults = new ConcurrentHashMap<>();
+        private volatile String ghEtag = null;
+        private volatile String ghCachedData = null;
 
         @JavascriptInterface
         public String ghGet(String path) {
             try {
-                String urlStr = "https://api.github.com/repos/zhushisanxiangfangfamily/family-tree-test/contents/" + path + "?ref=master&_=" + System.currentTimeMillis();
+                String urlStr = "https://api.github.com/repos/zhushisanxiangfangfamily/family-tree-test/contents/" + path + "?ref=master";
                 URL url = new URL(urlStr);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setConnectTimeout(5000);
@@ -495,42 +497,86 @@ public class MainActivity extends Activity {
                 conn.setRequestProperty("Authorization", "token " + BuildConfig.GH_TOKEN);
                 conn.setRequestProperty("Accept", "application/vnd.github.v3+json");
                 conn.setRequestProperty("Connection", "close");
+                String etag = ghEtag;
+                if (etag != null) conn.setRequestProperty("If-None-Match", etag);
                 int code = conn.getResponseCode();
+                if (code == 304) {
+                    conn.disconnect();
+                    String cached = ghCachedData;
+                    if (cached != null) return cached;
+                    // No cache — retry without ETag
+                    conn = (HttpURLConnection) new URL(urlStr).openConnection();
+                    conn.setConnectTimeout(5000);
+                    conn.setReadTimeout(5000);
+                    conn.setRequestMethod("GET");
+                    conn.setRequestProperty("Authorization", "token " + BuildConfig.GH_TOKEN);
+                    conn.setRequestProperty("Accept", "application/vnd.github.v3+json");
+                    conn.setRequestProperty("Connection", "close");
+                    code = conn.getResponseCode();
+                }
                 if (code == 404) return "{\"ok\":false,\"status\":404}";
                 if (code != 200) return "{\"ok\":false,\"status\":" + code + "}";
+                String newEtag = conn.getHeaderField("ETag");
                 BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), "UTF-8"));
                 StringBuilder sb = new StringBuilder();
                 String line;
                 while ((line = reader.readLine()) != null) sb.append(line);
                 reader.close();
                 conn.disconnect();
-                return "{\"ok\":true,\"status\":200,\"data\":" + sb.toString() + "}";
+                String result = "{\"ok\":true,\"status\":200,\"data\":" + sb.toString() + "}";
+                if (newEtag != null) {
+                    ghEtag = newEtag;
+                    ghCachedData = result;
+                }
+                return result;
             } catch (Exception e) {
                 return "{\"ok\":false,\"status\":0,\"error\":\"" + e.getMessage() + "\"}";
             }
         }
 
         // Fetch raw file from raw.githubusercontent.com (CDN, no rate limit, no auth)
+        private volatile String ghRawEtag = null;
+        private volatile String ghRawCachedData = null;
+
         @JavascriptInterface
         public String ghRawGet(String path) {
             try {
-                String urlStr = "https://raw.githubusercontent.com/zhushisanxiangfangfamily/family-tree-test/master/" + path + "?_=" + System.currentTimeMillis();
+                String urlStr = "https://raw.githubusercontent.com/zhushisanxiangfangfamily/family-tree-test/master/" + path;
                 URL url = new URL(urlStr);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setConnectTimeout(4000);
                 conn.setReadTimeout(4000);
                 conn.setRequestMethod("GET");
                 conn.setRequestProperty("Connection", "close");
+                String etag = ghRawEtag;
+                if (etag != null) conn.setRequestProperty("If-None-Match", etag);
                 int code = conn.getResponseCode();
+                if (code == 304) {
+                    conn.disconnect();
+                    String cached = ghRawCachedData;
+                    if (cached != null) return cached;
+                    conn = (HttpURLConnection) new URL(urlStr).openConnection();
+                    conn.setConnectTimeout(4000);
+                    conn.setReadTimeout(4000);
+                    conn.setRequestMethod("GET");
+                    conn.setRequestProperty("Connection", "close");
+                    code = conn.getResponseCode();
+                }
                 if (code == 404) return "{\"ok\":false,\"status\":404}";
                 if (code != 200) return "{\"ok\":false,\"status\":" + code + "}";
+                String newEtag = conn.getHeaderField("ETag");
                 BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), "UTF-8"));
                 StringBuilder sb = new StringBuilder();
                 String line;
                 while ((line = reader.readLine()) != null) sb.append(line);
                 reader.close();
                 conn.disconnect();
-                return "{\"ok\":true,\"status\":200,\"data\":\"" + sb.toString().replace("\\", "\\\\").replace("\"", "\\\"") + "\"}";
+                String result = "{\"ok\":true,\"status\":200,\"data\":\"" + sb.toString().replace("\\", "\\\\").replace("\"", "\\\"") + "\"}";
+                if (newEtag != null) {
+                    ghRawEtag = newEtag;
+                    ghRawCachedData = result;
+                }
+                return result;
             } catch (Exception e) {
                 return "{\"ok\":false,\"status\":0,\"error\":\"" + e.getMessage() + "\"}";
             }
