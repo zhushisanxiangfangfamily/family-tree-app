@@ -5,3 +5,4 @@ app/build/
 *.apk
 !三厢房族谱-v*.apk
 local.properties
+_tmp_dex*/
