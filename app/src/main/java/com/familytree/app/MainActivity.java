@@ -35,6 +35,8 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.ValueCallback;
 import android.webkit.PermissionRequest;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebViewClient;
 import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
@@ -66,7 +68,12 @@ public class MainActivity extends Activity {
     private String _currentMemberName = null;
     private SharedPreferences _prefs;
     private static final String CHANNEL_ID = "mentions";
-    private static final int VERSION_CODE = 34;
+    private static final int VERSION_CODE = 35;
+    private Handler _timeoutHandler;
+    private Runnable _loadTimeoutRunnable;
+    private int _loadRetryCount = 0;
+    private static final int MAX_RETRIES = 2;
+    private static final int LOAD_TIMEOUT_MS = 15000;
     private static final String HOME_URL = "https://zhushisanxiangfangfamily.github.io/family-tree/";
     private static final String VERSION_URL = "https://raw.githubusercontent.com/zhushisanxiangfangfamily/family-tree-app/master/version.txt";
     private static final String UPDATE_APK_URL = "https://github.com/zhushisanxiangfangfamily/family-tree-app/releases/latest/download/app-release.apk";
@@ -217,13 +224,21 @@ public class MainActivity extends Activity {
             }
 
             @Override
+            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                // Reset load timeout on each page start
+                cancelLoadTimeout();
+            }
+
+            @Override
             public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
-                String errorHtml = "<html><head><meta name='viewport' content='width=device-width,initial-scale=1'></head>"
-                    + "<body style='background:#F5F0E8;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-family:system-ui,sans-serif;text-align:center'>"
-                    + "<div><div style='font-size:48px;margin-bottom:16px'>&#128225;</div>"
-                    + "<h2 style='color:#4a3000'>网络连接失败</h2>"
-                    + "<p style='color:#8B7355'>请检查网络后重新打开</p></div></body></html>";
-                view.loadDataWithBaseURL(null, errorHtml, "text/html", "UTF-8", null);
+                showLoadError();
+            }
+
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                if (request.isForMainFrame()) {
+                    showLoadError();
+                }
             }
 
             @Override
@@ -233,6 +248,8 @@ public class MainActivity extends Activity {
 
             @Override
             public void onPageFinished(WebView view, String url) {
+                cancelLoadTimeout();
+                _loadRetryCount = 0; // Success, reset retry counter
                 if (!unlocked) {
                     unlocked = true;
                     view.evaluateJavascript(
@@ -335,7 +352,46 @@ public class MainActivity extends Activity {
             ensureMentionService();
         }
 
+        _timeoutHandler = new Handler(Looper.getMainLooper());
         webView.loadUrl(HOME_URL);
+        startLoadTimeout();
+    }
+
+    private void startLoadTimeout() {
+        cancelLoadTimeout();
+        _loadTimeoutRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (_loadRetryCount < MAX_RETRIES) {
+                    _loadRetryCount++;
+                    webView.reload();
+                    startLoadTimeout();
+                } else {
+                    showLoadError();
+                }
+            }
+        };
+        _timeoutHandler.postDelayed(_loadTimeoutRunnable, LOAD_TIMEOUT_MS);
+    }
+
+    private void cancelLoadTimeout() {
+        if (_loadTimeoutRunnable != null) {
+            _timeoutHandler.removeCallbacks(_loadTimeoutRunnable);
+            _loadTimeoutRunnable = null;
+        }
+    }
+
+    private void showLoadError() {
+        String errorHtml = "<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
+            + "<style>body{font-family:system-ui,sans-serif;background:#F5F0E8;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center}"
+            + "h2{color:#4a3000;margin:16px 0}p{color:#8B7355;margin:8px 0}"
+            + ".btn{display:inline-block;margin-top:20px;padding:12px 32px;background:#4a3000;color:#fff;border:none;border-radius:8px;font-size:16px;cursor:pointer;text-decoration:none}"
+            + "</style></head><body><div>"
+            + "<div style='font-size:48px'>&#128225;</div>"
+            + "<h2>加载失败</h2><p>请检查网络连接后重试</p>"
+            + "<a class='btn' href='javascript:location.reload()'>重新加载</a>"
+            + "</div></body></html>";
+        webView.loadDataWithBaseURL(HOME_URL, errorHtml, "text/html", "UTF-8", null);
     }
 
     private void ensureMentionService() {
