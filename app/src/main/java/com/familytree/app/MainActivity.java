@@ -69,7 +69,7 @@ public class MainActivity extends Activity {
     private String _currentMemberName = null;
     private SharedPreferences _prefs;
     private static final String CHANNEL_ID = "mentions";
-    private static final int VERSION_CODE = 47;
+    private static final int VERSION_CODE = 48;
     private Handler _timeoutHandler;
     private Runnable _loadTimeoutRunnable;
     private int _loadRetryCount = 0;
@@ -312,6 +312,17 @@ public class MainActivity extends Activity {
         }
 
         _prefs = getSharedPreferences("ft_prefs", MODE_PRIVATE);
+
+        // Request battery optimization exemption (one-time prompt)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !_prefs.getBoolean("batteryAsked", false)) {
+            PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+            if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                _prefs.edit().putBoolean("batteryAsked", true).apply();
+                Intent bi = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                bi.setData(Uri.parse("package:" + getPackageName()));
+                startActivity(bi);
+            }
+        }
 
         // Restore user state (survives process death)
         _currentMemberId = _prefs.getString("currentMemberId", null);
@@ -1015,26 +1026,6 @@ public class MainActivity extends Activity {
                 @Override
                 public void run() {
                     ensureMentionService();
-                    // Show battery optimization guide dialog after login
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
-                        if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
-                            new AlertDialog.Builder(MainActivity.this)
-                                .setTitle("关闭后台省电限制")
-                                .setMessage("为确保收到 @提醒通知，请在系统设置中关闭本应用的后台省电限制。\n\n点击「去设置」→ 找到「省电策略」或「电池」→ 选择「不限制」")
-                                .setCancelable(false)
-                                .setPositiveButton("去设置", new android.content.DialogInterface.OnClickListener() {
-                                    @Override
-                                    public void onClick(android.content.DialogInterface dialog, int which) {
-                                        Intent si = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                                        si.setData(Uri.parse("package:" + getPackageName()));
-                                        startActivity(si);
-                                    }
-                                })
-                                .setNegativeButton("稍后再说", null)
-                                .show();
-                        }
-                    }
                 }
             });
         }
