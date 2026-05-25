@@ -69,7 +69,7 @@ public class MainActivity extends Activity {
     private String _currentMemberName = null;
     private SharedPreferences _prefs;
     private static final String CHANNEL_ID = "mentions";
-    private static final int VERSION_CODE = 38;
+    private static final int VERSION_CODE = 39;
     private Handler _timeoutHandler;
     private Runnable _loadTimeoutRunnable;
     private int _loadRetryCount = 0;
@@ -313,16 +313,6 @@ public class MainActivity extends Activity {
 
         _prefs = getSharedPreferences("ft_prefs", MODE_PRIVATE);
 
-        // Request battery optimization exemption if not already granted
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
-            if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
-                Intent bi = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-                bi.setData(Uri.parse("package:" + getPackageName()));
-                startActivity(bi);
-            }
-        }
-
         // Restore user state (survives process death)
         _currentMemberId = _prefs.getString("currentMemberId", null);
         _currentMemberName = _prefs.getString("currentMemberName", null);
@@ -351,6 +341,7 @@ public class MainActivity extends Activity {
         // Start service only if permissions are already granted (otherwise deferred to callback)
         if (!needPerms) {
             ensureMentionService();
+            requestBatteryOptimization();
         }
 
         _timeoutHandler = new Handler(Looper.getMainLooper());
@@ -418,6 +409,21 @@ public class MainActivity extends Activity {
             // Mic permission granted — reload page so WebView can use it
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 if (webView != null) webView.reload();
+            }
+        }
+        // Request battery optimization after permission dialogs are done
+        requestBatteryOptimization();
+    }
+
+    private void requestBatteryOptimization() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+            if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                try {
+                    Intent bi = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                    bi.setData(Uri.parse("package:" + getPackageName()));
+                    startActivity(bi);
+                } catch (Exception ignored) {}
             }
         }
     }
