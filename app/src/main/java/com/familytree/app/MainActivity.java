@@ -69,7 +69,7 @@ public class MainActivity extends Activity {
     private String _currentMemberName = null;
     private SharedPreferences _prefs;
     private static final String CHANNEL_ID = "mentions";
-    private static final int VERSION_CODE = 46;
+    private static final int VERSION_CODE = 47;
     private Handler _timeoutHandler;
     private Runnable _loadTimeoutRunnable;
     private int _loadRetryCount = 0;
@@ -480,71 +480,93 @@ public class MainActivity extends Activity {
         Toast.makeText(appCtx, "正在后台下载，请在通知栏查看进度", Toast.LENGTH_SHORT).show();
         finish();
 
+        final int MAX_RETRIES = 2;
+        final int STALL_TIMEOUT = 15000; // 15s no progress → retry
+
         new Thread(new Runnable() {
             @Override
             public void run() {
                 File outFile = null;
-                try {
-                    URL url = new URL(UPDATE_APK_URL);
-                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                    conn.setConnectTimeout(15000);
-                    conn.setReadTimeout(30000);
-                    conn.setRequestMethod("GET");
-                    conn.setRequestProperty("Connection", "close");
-                    conn.connect();
+                for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+                    try {
+                        if (attempt > 0) {
+                            nb.setContentText("正在重试下载...").setProgress(100, 0, true);
+                            nm.notify(NOTIF_ID, nb.build());
+                        }
 
-                    int total = conn.getContentLength();
-                    InputStream in = conn.getInputStream();
+                        URL url = new URL(UPDATE_APK_URL);
+                        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                        conn.setConnectTimeout(15000);
+                        conn.setReadTimeout(15000);
+                        conn.setRequestMethod("GET");
+                        conn.setRequestProperty("Connection", "close");
+                        conn.connect();
 
-                    File dir = new File(appCtx.getExternalFilesDir(null), "Download");
-                    dir.mkdirs();
-                    outFile = new File(dir, "家族族谱.apk");
-                    FileOutputStream out = new FileOutputStream(outFile);
+                        int total = conn.getContentLength();
+                        InputStream in = conn.getInputStream();
 
-                    byte[] buf = new byte[8192];
-                    int downloaded = 0, len;
-                    long lastUpdate = 0;
+                        File dir = new File(appCtx.getExternalFilesDir(null), "Download");
+                        dir.mkdirs();
+                        outFile = new File(dir, "家族族谱.apk");
+                        FileOutputStream out = new FileOutputStream(outFile);
 
-                    while ((len = in.read(buf)) > 0) {
-                        out.write(buf, 0, len);
-                        downloaded += len;
-                        long now = System.currentTimeMillis();
-                        if (now - lastUpdate > 300 && total > 0) {
-                            lastUpdate = now;
-                            int pct = (int) (downloaded * 100L / total);
-                            String text = pct + "% (" + (downloaded / 1024) + "KB / " + (total / 1024) + "KB)";
-                            nb.setProgress(100, pct, false).setContentText(text);
+                        byte[] buf = new byte[8192];
+                        int downloaded = 0, len;
+                        long lastUpdate = 0, lastProgress = System.currentTimeMillis();
+
+                        while ((len = in.read(buf)) > 0) {
+                            out.write(buf, 0, len);
+                            downloaded += len;
+                            lastProgress = System.currentTimeMillis();
+                            long now = System.currentTimeMillis();
+                            if (now - lastUpdate > 300 && total > 0) {
+                                lastUpdate = now;
+                                int pct = (int) (downloaded * 100L / total);
+                                String text = pct + "% (" + (downloaded / 1024) + "KB / " + (total / 1024) + "KB)";
+                                nb.setProgress(100, pct, false).setContentText(text);
+                                nm.notify(NOTIF_ID, nb.build());
+                            }
+                            // Stall detection
+                            if (System.currentTimeMillis() - lastProgress > STALL_TIMEOUT) {
+                                in.close();
+                                out.close();
+                                conn.disconnect();
+                                throw new java.net.SocketTimeoutException("下载卡住，自动重试");
+                            }
+                        }
+
+                        in.close();
+                        out.close();
+                        conn.disconnect();
+
+                        // Success — show install notification
+                        nb.setContentTitle("下载完成").setContentText("点击安装新版本")
+                            .setProgress(0, 0, false).setOngoing(false).setAutoCancel(true);
+
+                        Intent install = new Intent(Intent.ACTION_VIEW);
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            Uri apkUri = FileProvider.getUriForFile(appCtx, appCtx.getPackageName() + ".fileprovider", outFile);
+                            install.setDataAndType(apkUri, "application/vnd.android.package-archive");
+                            install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        } else {
+                            install.setDataAndType(Uri.fromFile(outFile), "application/vnd.android.package-archive");
+                        }
+                        install.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        int flags = Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT : PendingIntent.FLAG_UPDATE_CURRENT;
+                        PendingIntent pi = PendingIntent.getActivity(appCtx, 0, install, flags);
+                        nb.setContentIntent(pi);
+                        nm.notify(NOTIF_ID, nb.build());
+                        return; // success
+
+                    } catch (Exception e) {
+                        if (outFile != null) outFile.delete();
+                        outFile = null;
+                        if (attempt >= MAX_RETRIES) {
+                            nb.setContentTitle("下载失败").setContentText("请检查网络后重试")
+                                .setProgress(0, 0, false).setOngoing(false).setAutoCancel(true);
                             nm.notify(NOTIF_ID, nb.build());
                         }
                     }
-
-                    in.close();
-                    out.close();
-                    conn.disconnect();
-
-                    // Download complete — show install notification
-                    nb.setContentTitle("下载完成").setContentText("点击安装新版本")
-                        .setProgress(0, 0, false).setOngoing(false).setAutoCancel(true);
-
-                    Intent install = new Intent(Intent.ACTION_VIEW);
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                        Uri apkUri = FileProvider.getUriForFile(appCtx, appCtx.getPackageName() + ".fileprovider", outFile);
-                        install.setDataAndType(apkUri, "application/vnd.android.package-archive");
-                        install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                    } else {
-                        install.setDataAndType(Uri.fromFile(outFile), "application/vnd.android.package-archive");
-                    }
-                    install.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    int flags = Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT : PendingIntent.FLAG_UPDATE_CURRENT;
-                    PendingIntent pi = PendingIntent.getActivity(appCtx, 0, install, flags);
-                    nb.setContentIntent(pi);
-                    nm.notify(NOTIF_ID, nb.build());
-
-                } catch (Exception e) {
-                    nb.setContentTitle("下载失败").setContentText("请检查网络后重试")
-                        .setProgress(0, 0, false).setOngoing(false).setAutoCancel(true);
-                    nm.notify(NOTIF_ID, nb.build());
-                    if (outFile != null) outFile.delete();
                 }
             }
         }).start();
