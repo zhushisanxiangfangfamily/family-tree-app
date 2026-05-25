@@ -68,7 +68,7 @@ public class MainActivity extends Activity {
     private String _currentMemberName = null;
     private SharedPreferences _prefs;
     private static final String CHANNEL_ID = "mentions";
-    private static final int VERSION_CODE = 35;
+    private static final int VERSION_CODE = 36;
     private Handler _timeoutHandler;
     private Runnable _loadTimeoutRunnable;
     private int _loadRetryCount = 0;
@@ -310,12 +310,12 @@ public class MainActivity extends Activity {
             nm.createNotificationChannel(channel);
         }
 
-        // Request battery optimization exemption (one-time prompt)
         _prefs = getSharedPreferences("ft_prefs", MODE_PRIVATE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !_prefs.getBoolean("batteryAsked", false)) {
+
+        // Request battery optimization exemption if not already granted
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
             if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
-                _prefs.edit().putBoolean("batteryAsked", true).apply();
                 Intent bi = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
                 bi.setData(Uri.parse("package:" + getPackageName()));
                 startActivity(bi);
