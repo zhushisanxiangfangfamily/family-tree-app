@@ -24,6 +24,8 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
+import android.provider.Settings;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -291,8 +293,19 @@ public class MainActivity extends Activity {
             nm.createNotificationChannel(channel);
         }
 
-        // Restore user state (survives process death)
+        // Request battery optimization exemption (one-time prompt)
         _prefs = getSharedPreferences("ft_prefs", MODE_PRIVATE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !_prefs.getBoolean("batteryAsked", false)) {
+            PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+            if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                _prefs.edit().putBoolean("batteryAsked", true).apply();
+                Intent bi = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                bi.setData(Uri.parse("package:" + getPackageName()));
+                startActivity(bi);
+            }
+        }
+
+        // Restore user state (survives process death)
         _currentMemberId = _prefs.getString("currentMemberId", null);
         _currentMemberName = _prefs.getString("currentMemberName", null);
         String savedSessionId = _prefs.getString("currentSessionId", null);
