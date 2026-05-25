@@ -69,7 +69,7 @@ public class MainActivity extends Activity {
     private String _currentMemberName = null;
     private SharedPreferences _prefs;
     private static final String CHANNEL_ID = "mentions";
-    private static final int VERSION_CODE = 41;
+    private static final int VERSION_CODE = 42;
     private Handler _timeoutHandler;
     private Runnable _loadTimeoutRunnable;
     private int _loadRetryCount = 0;
@@ -318,18 +318,6 @@ public class MainActivity extends Activity {
         _currentMemberName = _prefs.getString("currentMemberName", null);
 
         webView.addJavascriptInterface(new WebAppInterface(), "Android");
-
-        // Request battery optimization exemption
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
-            if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
-                try {
-                    Intent bi = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-                    bi.setData(Uri.parse("package:" + getPackageName()));
-                    startActivity(bi);
-                } catch (Exception ignored) {}
-            }
-        }
 
         // Request runtime permissions BEFORE starting notification service
         // (Android 13+ requires POST_NOTIFICATIONS for foreground service)
@@ -1005,6 +993,17 @@ public class MainActivity extends Activity {
                 @Override
                 public void run() {
                     ensureMentionService();
+                    // Request battery optimization after login
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+                        if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                            try {
+                                Intent bi = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                                bi.setData(Uri.parse("package:" + getPackageName()));
+                                startActivity(bi);
+                            } catch (Exception ignored) {}
+                        }
+                    }
                 }
             });
         }
