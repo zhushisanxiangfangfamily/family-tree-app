@@ -66,7 +66,7 @@ public class MainActivity extends Activity {
     private String _currentMemberName = null;
     private SharedPreferences _prefs;
     private static final String CHANNEL_ID = "mentions";
-    private static final int VERSION_CODE = 32;
+    private static final int VERSION_CODE = 34;
     private static final String HOME_URL = "https://zhushisanxiangfangfamily.github.io/family-tree/";
     private static final String VERSION_URL = "https://raw.githubusercontent.com/zhushisanxiangfangfamily/family-tree-app/master/version.txt";
     private static final String UPDATE_APK_URL = "https://github.com/zhushisanxiangfangfamily/family-tree-app/releases/latest/download/app-release.apk";
