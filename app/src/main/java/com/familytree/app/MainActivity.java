@@ -4,7 +4,13 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.DownloadManager;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.AssetFileDescriptor;
 import android.graphics.Color;
@@ -15,6 +21,9 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.Looper;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -29,6 +38,7 @@ import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+import androidx.core.app.NotificationCompat;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -50,7 +60,11 @@ public class MainActivity extends Activity {
     private boolean unlocked = false;
     private long lastBackTime = 0;
     private ValueCallback<Uri[]> fileChooserCallback;
-    private static final int VERSION_CODE = 31;
+    private String _currentMemberId = null;
+    private String _currentMemberName = null;
+    private SharedPreferences _prefs;
+    private static final String CHANNEL_ID = "mentions";
+    private static final int VERSION_CODE = 32;
     private static final String HOME_URL = "https://zhushisanxiangfangfamily.github.io/family-tree-test/";
     private static final String VERSION_URL = "https://raw.githubusercontent.com/zhushisanxiangfangfamily/family-tree-app/master/version.txt";
     private static final String UPDATE_APK_URL = "https://github.com/zhushisanxiangfangfamily/family-tree-app/releases/latest/download/app-debug.apk";
@@ -268,10 +282,46 @@ public class MainActivity extends Activity {
             }
         });
 
+        // Notification channel for @mention notifications
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                CHANNEL_ID, "家族群聊通知", NotificationManager.IMPORTANCE_HIGH);
+            channel.setDescription("@提醒通知");
+            NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            nm.createNotificationChannel(channel);
+        }
+
+        // Restore user state (survives process death)
+        _prefs = getSharedPreferences("ft_prefs", MODE_PRIVATE);
+        _currentMemberId = _prefs.getString("currentMemberId", null);
+        _currentMemberName = _prefs.getString("currentMemberName", null);
+        String savedSessionId = _prefs.getString("currentSessionId", null);
+        // Restart mention service if user was logged in before kill
+        if (_currentMemberId != null) {
+            Intent si = new Intent(MainActivity.this, MentionService.class);
+            si.putExtra("memberId", _currentMemberId);
+            si.putExtra("memberName", _currentMemberName);
+            si.putExtra("sessionId", savedSessionId != null ? savedSessionId : "");
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(si);
+            } else {
+                startService(si);
+            }
+        }
+
         webView.addJavascriptInterface(new WebAppInterface(), "Android");
 
-        // Request runtime RECORD_AUDIO permission for voice messages
-        if (Build.VERSION.SDK_INT >= 23) {
+        // Request runtime permissions
+        if (Build.VERSION.SDK_INT >= 33) {
+            boolean needMic = checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED;
+            boolean needNotif = checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED;
+            if (needMic || needNotif) {
+                java.util.ArrayList<String> perms = new java.util.ArrayList<>();
+                if (needMic) perms.add(Manifest.permission.RECORD_AUDIO);
+                if (needNotif) perms.add(Manifest.permission.POST_NOTIFICATIONS);
+                requestPermissions(perms.toArray(new String[0]), 1001);
+            }
+        } else if (Build.VERSION.SDK_INT >= 23) {
             if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 1001);
             }
@@ -413,6 +463,34 @@ public class MainActivity extends Activity {
         if (mediaPlayer != null && musicPausedByLifecycle) {
             mediaPlayer.start();
             musicPausedByLifecycle = false;
+        }
+        // Check if session was kicked by another device
+        SharedPreferences prefs = getSharedPreferences("ft_prefs", MODE_PRIVATE);
+        if (prefs.getBoolean("sessionKicked", false)) {
+            prefs.edit().putBoolean("sessionKicked", false).apply();
+            // Clear login state and reload to show login screen
+            _currentMemberId = null;
+            _currentMemberName = null;
+            prefs.edit()
+                .remove("currentMemberId").remove("currentMemberName")
+                .remove("currentSessionId").apply();
+            stopService(new Intent(MainActivity.this, MentionService.class));
+            Toast.makeText(MainActivity.this, "账号在另一设备登录，已退出", Toast.LENGTH_LONG).show();
+            webView.reload();
+        }
+        // Handle notification click with sessionKicked
+        Intent intent = getIntent();
+        if (intent != null && intent.getBooleanExtra("sessionKicked", false)) {
+            intent.removeExtra("sessionKicked");
+            prefs.edit().putBoolean("sessionKicked", false).apply();
+            _currentMemberId = null;
+            _currentMemberName = null;
+            prefs.edit()
+                .remove("currentMemberId").remove("currentMemberName")
+                .remove("currentSessionId").apply();
+            stopService(new Intent(MainActivity.this, MentionService.class));
+            Toast.makeText(MainActivity.this, "账号在另一设备登录，已退出", Toast.LENGTH_LONG).show();
+            webView.reload();
         }
     }
 
@@ -747,6 +825,54 @@ public class MainActivity extends Activity {
             } catch (Exception e) {
                 return "false";
             }
+        }
+
+        @JavascriptInterface
+        public void setCurrentUser(String memberId, String memberName, String sessionId) {
+            _currentMemberId = memberId;
+            _currentMemberName = memberName;
+            SharedPreferences prefs = getSharedPreferences("ft_prefs", MODE_PRIVATE);
+            prefs.edit()
+                .putString("currentMemberId", memberId)
+                .putString("currentMemberName", memberName)
+                .putString("currentSessionId", sessionId != null ? sessionId : "")
+                .putBoolean("sessionKicked", false)
+                .apply();
+
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        Intent intent = new Intent(MainActivity.this, MentionService.class);
+                        intent.putExtra("memberId", memberId);
+                        intent.putExtra("memberName", memberName);
+                        intent.putExtra("sessionId", sessionId != null ? sessionId : "");
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            startForegroundService(intent);
+                        } else {
+                            startService(intent);
+                        }
+                    } catch (Exception e) {
+                        Toast.makeText(MainActivity.this, "通知服务启动失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    }
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void clearCurrentUser() {
+            _currentMemberId = null;
+            _currentMemberName = null;
+            SharedPreferences prefs = getSharedPreferences("ft_prefs", MODE_PRIVATE);
+            prefs.edit().remove("currentMemberId").remove("currentMemberName")
+                .remove("currentSessionId").putBoolean("sessionKicked", false).apply();
+            stopService(new Intent(MainActivity.this, MentionService.class));
+        }
+
+        @JavascriptInterface
+        public boolean isSessionKicked() {
+            SharedPreferences prefs = getSharedPreferences("ft_prefs", MODE_PRIVATE);
+            return prefs.getBoolean("sessionKicked", false);
         }
 
         @JavascriptInterface
