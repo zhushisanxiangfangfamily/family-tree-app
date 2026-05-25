@@ -3,7 +3,6 @@ package com.familytree.app;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.app.DownloadManager;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -43,9 +42,11 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.FileProvider;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -68,7 +69,7 @@ public class MainActivity extends Activity {
     private String _currentMemberName = null;
     private SharedPreferences _prefs;
     private static final String CHANNEL_ID = "mentions";
-    private static final int VERSION_CODE = 37;
+    private static final int VERSION_CODE = 38;
     private Handler _timeoutHandler;
     private Runnable _loadTimeoutRunnable;
     private int _loadRetryCount = 0;
@@ -466,20 +467,97 @@ public class MainActivity extends Activity {
     }
 
     private void downloadAndInstall() {
-        try {
-            DownloadManager.Request request = new DownloadManager.Request(Uri.parse(UPDATE_APK_URL));
-            request.setTitle("家族族谱更新");
-            request.setDescription("正在下载新版本...");
-            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE);
-            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "家族族谱.apk");
-            request.setMimeType("application/vnd.android.package-archive");
-            DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-            dm.enqueue(request);
-            Toast.makeText(this, "正在下载，请在通知栏查看进度，下载完成后点击安装", Toast.LENGTH_LONG).show();
-            finish();
-        } catch (Exception e) {
-            Toast.makeText(this, "下载失败，请检查网络后重试", Toast.LENGTH_SHORT).show();
+        final Context appCtx = getApplicationContext();
+        final String CH_ID = "apk_dl";
+        final int NOTIF_ID = 5001;
+
+        // Create notification channel
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel ch = new NotificationChannel(CH_ID, "应用更新", NotificationManager.IMPORTANCE_LOW);
+            ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).createNotificationChannel(ch);
         }
+
+        final NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        final NotificationCompat.Builder nb = new NotificationCompat.Builder(this, CH_ID)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle("家族族谱更新")
+            .setContentText("准备下载...")
+            .setOngoing(true)
+            .setProgress(100, 0, true);
+
+        nm.notify(NOTIF_ID, nb.build());
+
+        Toast.makeText(appCtx, "正在后台下载，请在通知栏查看进度", Toast.LENGTH_SHORT).show();
+        finish();
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                File outFile = null;
+                try {
+                    URL url = new URL(UPDATE_APK_URL);
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setConnectTimeout(15000);
+                    conn.setReadTimeout(30000);
+                    conn.setRequestMethod("GET");
+                    conn.setRequestProperty("Connection", "close");
+                    conn.connect();
+
+                    int total = conn.getContentLength();
+                    InputStream in = conn.getInputStream();
+
+                    File dir = new File(appCtx.getExternalFilesDir(null), "Download");
+                    dir.mkdirs();
+                    outFile = new File(dir, "家族族谱.apk");
+                    FileOutputStream out = new FileOutputStream(outFile);
+
+                    byte[] buf = new byte[8192];
+                    int downloaded = 0, len;
+                    long lastUpdate = 0;
+
+                    while ((len = in.read(buf)) > 0) {
+                        out.write(buf, 0, len);
+                        downloaded += len;
+                        long now = System.currentTimeMillis();
+                        if (now - lastUpdate > 300 && total > 0) {
+                            lastUpdate = now;
+                            int pct = (int) (downloaded * 100L / total);
+                            String text = pct + "% (" + (downloaded / 1024) + "KB / " + (total / 1024) + "KB)";
+                            nb.setProgress(100, pct, false).setContentText(text);
+                            nm.notify(NOTIF_ID, nb.build());
+                        }
+                    }
+
+                    in.close();
+                    out.close();
+                    conn.disconnect();
+
+                    // Download complete — show install notification
+                    nb.setContentTitle("下载完成").setContentText("点击安装新版本")
+                        .setProgress(0, 0, false).setOngoing(false).setAutoCancel(true);
+
+                    Intent install = new Intent(Intent.ACTION_VIEW);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        Uri apkUri = FileProvider.getUriForFile(appCtx, appCtx.getPackageName() + ".fileprovider", outFile);
+                        install.setDataAndType(apkUri, "application/vnd.android.package-archive");
+                        install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    } else {
+                        install.setDataAndType(Uri.fromFile(outFile), "application/vnd.android.package-archive");
+                    }
+                    install.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    int flags = Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT : PendingIntent.FLAG_UPDATE_CURRENT;
+                    PendingIntent pi = PendingIntent.getActivity(appCtx, 0, install, flags);
+                    nb.setContentIntent(pi);
+                    nm.notify(NOTIF_ID, nb.build());
+
+                } catch (Exception e) {
+                    nb.setContentTitle("下载失败").setContentText("请检查网络后重试")
+                        .setProgress(0, 0, false).setOngoing(false).setAutoCancel(true);
+                    nm.notify(NOTIF_ID, nb.build());
+                    if (outFile != null) outFile.delete();
+                }
+            }
+        }).start();
     }
 
     @Override
