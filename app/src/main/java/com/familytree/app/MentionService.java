@@ -28,8 +28,8 @@ import org.json.JSONObject;
 public class MentionService extends Service {
     private static final String CHANNEL_ID = "mentions";
     private static final int FOREGROUND_ID = 2001;
-    private static final String RAW_URL = "https://api.github.com/repos/zhushisanxiangfangfamily/family-tree-test/contents/data/mentions.json";
-    private static final String SESSION_URL = "https://api.github.com/repos/zhushisanxiangfangfamily/family-tree-test/contents/data/messages.json";
+    private static final String RAW_URL = "https://api.github.com/repos/zhushisanxiangfangfamily/family-tree/contents/data/mentions.json";
+    private static final String SESSION_URL = "https://api.github.com/repos/zhushisanxiangfangfamily/family-tree/contents/data/messages.json";
     private static final long POLL_INTERVAL = 60000;
     private static final String GH_TOKEN = com.familytree.app.BuildConfig.GH_TOKEN;
 
@@ -54,7 +54,7 @@ public class MentionService extends Service {
         _wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "FamilyTree:Mention");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
-                CHANNEL_ID, getString(R.string.app_name) + "通知", NotificationManager.IMPORTANCE_LOW);
+                CHANNEL_ID, getString(R.string.app_name) + "通知", NotificationManager.IMPORTANCE_DEFAULT);
             NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
             nm.createNotificationChannel(channel);
         }

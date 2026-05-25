@@ -67,9 +67,9 @@ public class MainActivity extends Activity {
     private SharedPreferences _prefs;
     private static final String CHANNEL_ID = "mentions";
     private static final int VERSION_CODE = 32;
-    private static final String HOME_URL = "https://zhushisanxiangfangfamily.github.io/family-tree-test/";
+    private static final String HOME_URL = "https://zhushisanxiangfangfamily.github.io/family-tree/";
     private static final String VERSION_URL = "https://raw.githubusercontent.com/zhushisanxiangfangfamily/family-tree-app/master/version.txt";
-    private static final String UPDATE_APK_URL = "https://github.com/zhushisanxiangfangfamily/family-tree-app/releases/latest/download/app-debug.apk";
+    private static final String UPDATE_APK_URL = "https://github.com/zhushisanxiangfangfamily/family-tree-app/releases/latest/download/app-release.apk";
 
     private static final String EXPORT_JS =
         "(function(){" +
@@ -308,27 +308,17 @@ public class MainActivity extends Activity {
         // Restore user state (survives process death)
         _currentMemberId = _prefs.getString("currentMemberId", null);
         _currentMemberName = _prefs.getString("currentMemberName", null);
-        String savedSessionId = _prefs.getString("currentSessionId", null);
-        // Restart mention service if user was logged in before kill
-        if (_currentMemberId != null) {
-            Intent si = new Intent(MainActivity.this, MentionService.class);
-            si.putExtra("memberId", _currentMemberId);
-            si.putExtra("memberName", _currentMemberName);
-            si.putExtra("sessionId", savedSessionId != null ? savedSessionId : "");
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(si);
-            } else {
-                startService(si);
-            }
-        }
 
         webView.addJavascriptInterface(new WebAppInterface(), "Android");
 
-        // Request runtime permissions
+        // Request runtime permissions BEFORE starting notification service
+        // (Android 13+ requires POST_NOTIFICATIONS for foreground service)
+        boolean needPerms = false;
         if (Build.VERSION.SDK_INT >= 33) {
             boolean needMic = checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED;
             boolean needNotif = checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED;
             if (needMic || needNotif) {
+                needPerms = true;
                 java.util.ArrayList<String> perms = new java.util.ArrayList<>();
                 if (needMic) perms.add(Manifest.permission.RECORD_AUDIO);
                 if (needNotif) perms.add(Manifest.permission.POST_NOTIFICATIONS);
@@ -336,19 +326,42 @@ public class MainActivity extends Activity {
             }
         } else if (Build.VERSION.SDK_INT >= 23) {
             if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                needPerms = true;
                 requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 1001);
             }
+        }
+        // Start service only if permissions are already granted (otherwise deferred to callback)
+        if (!needPerms) {
+            ensureMentionService();
         }
 
         webView.loadUrl(HOME_URL);
     }
 
+    private void ensureMentionService() {
+        if (_currentMemberId == null) return;
+        String savedSessionId = _prefs.getString("currentSessionId", null);
+        Intent si = new Intent(MainActivity.this, MentionService.class);
+        si.putExtra("memberId", _currentMemberId);
+        si.putExtra("memberName", _currentMemberName);
+        si.putExtra("sessionId", savedSessionId != null ? savedSessionId : "");
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(si);
+        } else {
+            startService(si);
+        }
+    }
+
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == 1001 && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+        if (requestCode == 1001) {
+            // Permissions granted — start notification service now if user is logged in
+            ensureMentionService();
             // Mic permission granted — reload page so WebView can use it
-            if (webView != null) webView.reload();
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                if (webView != null) webView.reload();
+            }
         }
     }
 
@@ -579,7 +592,7 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String ghGet(String path) {
             try {
-                String urlStr = "https://api.github.com/repos/zhushisanxiangfangfamily/family-tree-test/contents/" + path + "?ref=master";
+                String urlStr = "https://api.github.com/repos/zhushisanxiangfangfamily/family-tree/contents/" + path + "?ref=master";
                 URL url = new URL(urlStr);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setConnectTimeout(5000);
@@ -632,7 +645,7 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String ghRawGet(String path) {
             try {
-                String urlStr = "https://raw.githubusercontent.com/zhushisanxiangfangfamily/family-tree-test/master/" + path;
+                String urlStr = "https://raw.githubusercontent.com/zhushisanxiangfangfamily/family-tree/master/" + path;
                 URL url = new URL(urlStr);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setConnectTimeout(4000);
@@ -676,7 +689,7 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String ghPut(String path, String content, String sha, String message) {
             try {
-                String urlStr = "https://api.github.com/repos/zhushisanxiangfangfamily/family-tree-test/contents/" + path;
+                String urlStr = "https://api.github.com/repos/zhushisanxiangfangfamily/family-tree/contents/" + path;
                 URL url = new URL(urlStr);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setConnectTimeout(8000);
@@ -855,19 +868,7 @@ public class MainActivity extends Activity {
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    try {
-                        Intent intent = new Intent(MainActivity.this, MentionService.class);
-                        intent.putExtra("memberId", memberId);
-                        intent.putExtra("memberName", memberName);
-                        intent.putExtra("sessionId", sessionId != null ? sessionId : "");
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            startForegroundService(intent);
-                        } else {
-                            startService(intent);
-                        }
-                    } catch (Exception e) {
-                        Toast.makeText(MainActivity.this, "通知服务启动失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                    }
+                    ensureMentionService();
                 }
             });
         }
