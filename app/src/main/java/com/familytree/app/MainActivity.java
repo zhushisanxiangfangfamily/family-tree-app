@@ -68,7 +68,7 @@ public class MainActivity extends Activity {
     private String _currentMemberName = null;
     private SharedPreferences _prefs;
     private static final String CHANNEL_ID = "mentions";
-    private static final int VERSION_CODE = 36;
+    private static final int VERSION_CODE = 37;
     private Handler _timeoutHandler;
     private Runnable _loadTimeoutRunnable;
     private int _loadRetryCount = 0;
@@ -76,7 +76,7 @@ public class MainActivity extends Activity {
     private static final int LOAD_TIMEOUT_MS = 15000;
     private static final String HOME_URL = "https://zhushisanxiangfangfamily.github.io/family-tree/";
     private static final String VERSION_URL = "https://raw.githubusercontent.com/zhushisanxiangfangfamily/family-tree-app/master/version.txt";
-    private static final String UPDATE_APK_URL = "https://github.com/zhushisanxiangfangfamily/family-tree-app/releases/latest/download/app-release.apk";
+    private static final String UPDATE_APK_URL = "https://zhushisanxiangfangfamily.github.io/family-tree/app-release.apk";
 
     private static final String EXPORT_JS =
         "(function(){" +
@@ -470,7 +470,7 @@ public class MainActivity extends Activity {
             DownloadManager.Request request = new DownloadManager.Request(Uri.parse(UPDATE_APK_URL));
             request.setTitle("家族族谱更新");
             request.setDescription("正在下载新版本...");
-            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE);
             request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "家族族谱.apk");
             request.setMimeType("application/vnd.android.package-archive");
             DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);

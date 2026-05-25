@@ -17,8 +17,8 @@ android {
         applicationId "com.familytree.app"
         minSdk 21
         targetSdk 36
-        versionCode 36
-        versionName "3.6"
+        versionCode 37
+        versionName "3.7"
         buildConfigField "String", "GH_TOKEN", "\"${localProps.getProperty('GH_TOKEN', '')}\""
     }
 
