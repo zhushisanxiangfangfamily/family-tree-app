@@ -12,6 +12,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.util.Base64;
 import android.util.Log;
 
@@ -43,11 +44,14 @@ public class MentionService extends Service {
     private String _sessionId;
     private String _sessionEtag;
     private boolean _sessionFirstPoll = true;
+    private PowerManager.WakeLock _wakeLock;
 
     @Override
     public void onCreate() {
         super.onCreate();
         _handler = new Handler(Looper.getMainLooper());
+        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+        _wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "FamilyTree:Mention");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID, getString(R.string.app_name) + "通知", NotificationManager.IMPORTANCE_LOW);
@@ -94,6 +98,7 @@ public class MentionService extends Service {
     public void onDestroy() {
         _running = false;
         stopPolling();
+        if (_wakeLock != null && _wakeLock.isHeld()) _wakeLock.release();
         super.onDestroy();
     }
 
@@ -122,6 +127,10 @@ public class MentionService extends Service {
             @Override
             public void run() {
                 if (!_running) return;
+                // Keep CPU awake for the duration of HTTP requests (15s max)
+                if (_wakeLock != null && !_wakeLock.isHeld()) {
+                    _wakeLock.acquire(15000);
+                }
                 pollMentions();
                 checkSession();
                 if (_running) _handler.postDelayed(this, POLL_INTERVAL);
