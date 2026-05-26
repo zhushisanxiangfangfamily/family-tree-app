@@ -2,12 +2,6 @@ plugins {
     id("com.android.application")
 }
 
-// Read GitHub token from local.properties (not committed to git)
-def localProps = new Properties()
-def localPropsFile = rootProject.file("local.properties")
-if (localPropsFile.exists()) {
-    localPropsFile.withInputStream { localProps.load(it) }
-}
 
 android {
     namespace "com.familytree.app"
@@ -17,9 +11,9 @@ android {
         applicationId "com.familytree.app"
         minSdk 21
         targetSdk 36
-        versionCode 52
-        versionName "5.2"
-        buildConfigField "String", "GH_TOKEN", "\"${localProps.getProperty('GH_TOKEN', '')}\""
+        versionCode 53
+        versionName "5.3"
+        buildConfigField "String", "GH_TOKEN", "\"\""
     }
 
     signingConfigs {
