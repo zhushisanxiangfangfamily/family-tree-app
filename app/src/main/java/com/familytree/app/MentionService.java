@@ -28,9 +28,10 @@ import org.json.JSONObject;
 public class MentionService extends Service {
     private static final String CHANNEL_ID = "mentions";
     private static final int FOREGROUND_ID = 2001;
-    private static final String RAW_URL = "https://api.github.com/repos/zhushisanxiangfangfamily/family-tree/contents/data/mentions.json";
-    private static final String SESSION_URL = "https://api.github.com/repos/zhushisanxiangfangfamily/family-tree/contents/data/messages.json";
+    private static final String RAW_URL = "https://api.sxfzp.xyz/data/mentions.json";
+    private static final String SESSION_URL = "https://api.sxfzp.xyz/data/messages.json";
     private static final long POLL_INTERVAL = 60000;
+
     private Handler _handler;
     private Runnable _pollRunnable;
     private String _memberId;
@@ -145,13 +146,6 @@ public class MentionService extends Service {
     }
 
 
-    private String getGhToken() {
-        SharedPreferences prefs = getSharedPreferences("ft_prefs", MODE_PRIVATE);
-        String token = prefs.getString("ghToken", null);
-        if (token != null && !token.isEmpty()) return token;
-        return com.familytree.app.BuildConfig.GH_TOKEN;
-    }
-
     private void pollMentions() {
         new Thread(new Runnable() {
             @Override
@@ -162,7 +156,6 @@ public class MentionService extends Service {
                     conn.setConnectTimeout(10000);
                     conn.setReadTimeout(10000);
                     conn.setRequestMethod("GET");
-                    conn.setRequestProperty("Authorization", "token " + getGhToken());
                     conn.setRequestProperty("Connection", "close");
                     if (_etag != null) conn.setRequestProperty("If-None-Match", _etag);
 
@@ -263,7 +256,6 @@ public class MentionService extends Service {
                     conn.setConnectTimeout(10000);
                     conn.setReadTimeout(10000);
                     conn.setRequestMethod("GET");
-                    conn.setRequestProperty("Authorization", "token " + getGhToken());
                     conn.setRequestProperty("Connection", "close");
                     if (_sessionEtag != null) conn.setRequestProperty("If-None-Match", _sessionEtag);
 

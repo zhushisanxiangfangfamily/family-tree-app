@@ -69,7 +69,7 @@ public class MainActivity extends Activity {
     private String _currentMemberName = null;
     private SharedPreferences _prefs;
     private static final String CHANNEL_ID = "mentions";
-    private static final int VERSION_CODE = 53;
+    private static final int VERSION_CODE = 54;
     private Handler _timeoutHandler;
     private Runnable _loadTimeoutRunnable;
     private int _loadRetryCount = 0;
@@ -327,12 +327,6 @@ public class MainActivity extends Activity {
         // Restore user state (survives process death)
         _currentMemberId = _prefs.getString("currentMemberId", null);
         _currentMemberName = _prefs.getString("currentMemberName", null);
-
-        // Save token to SharedPreferences so future token-free APKs can still work
-        String savedToken = _prefs.getString("ghToken", null);
-        if ((savedToken == null || savedToken.isEmpty()) && BuildConfig.GH_TOKEN != null && !BuildConfig.GH_TOKEN.isEmpty()) {
-            _prefs.edit().putString("ghToken", BuildConfig.GH_TOKEN).apply();
-        }
 
         webView.addJavascriptInterface(new WebAppInterface(), "Android");
 
@@ -755,13 +749,12 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String ghGet(String path) {
             try {
-                String urlStr = "https://api.github.com/repos/zhushisanxiangfangfamily/family-tree/contents/" + path + "?ref=master";
+                String urlStr = "https://api.sxfzp.xyz/data/" + path;
                 URL url = new URL(urlStr);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setConnectTimeout(5000);
                 conn.setReadTimeout(5000);
                 conn.setRequestMethod("GET");
-                conn.setRequestProperty("Authorization", "token " + getGhToken());
                 conn.setRequestProperty("Accept", "application/vnd.github.v3+json");
                 conn.setRequestProperty("Connection", "close");
                 String etag = ghEtag;
@@ -776,7 +769,6 @@ public class MainActivity extends Activity {
                     conn.setConnectTimeout(5000);
                     conn.setReadTimeout(5000);
                     conn.setRequestMethod("GET");
-                    conn.setRequestProperty("Authorization", "token " + getGhToken());
                     conn.setRequestProperty("Accept", "application/vnd.github.v3+json");
                     conn.setRequestProperty("Connection", "close");
                     code = conn.getResponseCode();
@@ -804,12 +796,6 @@ public class MainActivity extends Activity {
         // Fetch raw file from raw.githubusercontent.com (CDN, no rate limit, no auth)
         private volatile String ghRawEtag = null;
         private volatile String ghRawCachedData = null;
-
-        private String getGhToken() {
-            String token = _prefs.getString("ghToken", null);
-            if (token != null && !token.isEmpty()) return token;
-            return BuildConfig.GH_TOKEN;
-        }
 
         @JavascriptInterface
         public String ghRawGet(String path) {
@@ -858,13 +844,12 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String ghPut(String path, String content, String sha, String message) {
             try {
-                String urlStr = "https://api.github.com/repos/zhushisanxiangfangfamily/family-tree/contents/" + path;
+                String urlStr = "https://api.sxfzp.xyz/data/" + path;
                 URL url = new URL(urlStr);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setConnectTimeout(8000);
                 conn.setReadTimeout(8000);
                 conn.setRequestMethod("PUT");
-                conn.setRequestProperty("Authorization", "token " + getGhToken());
                 conn.setRequestProperty("Content-Type", "application/json");
                 conn.setRequestProperty("Accept", "application/vnd.github.v3+json");
                 conn.setRequestProperty("Connection", "close");
@@ -948,13 +933,6 @@ public class MainActivity extends Activity {
                     });
                 }
             }).start();
-        }
-
-        @JavascriptInterface
-        public void setGhToken(String token) {
-            if (token != null && !token.isEmpty()) {
-                _prefs.edit().putString("ghToken", token).apply();
-            }
         }
 
         @JavascriptInterface
