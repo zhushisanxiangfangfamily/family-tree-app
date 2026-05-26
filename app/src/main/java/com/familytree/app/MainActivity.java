@@ -749,7 +749,7 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String ghGet(String path) {
             try {
-                String urlStr = "https://api.sxfzp.xyz/data/" + path;
+                String urlStr = "https://api.sxfzp.xyz/" + path;
                 URL url = new URL(urlStr);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setConnectTimeout(5000);
@@ -844,7 +844,7 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String ghPut(String path, String content, String sha, String message) {
             try {
-                String urlStr = "https://api.sxfzp.xyz/data/" + path;
+                String urlStr = "https://api.sxfzp.xyz/" + path;
                 URL url = new URL(urlStr);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setConnectTimeout(8000);
