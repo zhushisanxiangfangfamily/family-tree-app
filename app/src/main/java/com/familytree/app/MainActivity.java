@@ -951,6 +951,13 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void setGhToken(String token) {
+            if (token != null && !token.isEmpty()) {
+                _prefs.edit().putString("ghToken", token).apply();
+            }
+        }
+
+        @JavascriptInterface
         public String ghTakeResult(String callbackId) {
             return ghResults.remove(callbackId);
         }
