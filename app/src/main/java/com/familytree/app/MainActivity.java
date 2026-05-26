@@ -75,7 +75,7 @@ public class MainActivity extends Activity {
     private int _loadRetryCount = 0;
     private static final int MAX_RETRIES = 2;
     private static final int LOAD_TIMEOUT_MS = 15000;
-    private static final String HOME_URL = "https://zhushisanxiangfangfamily.github.io/family-tree/";
+    private static final String HOME_URL = "https://api.sxfzp.xyz/";
     private static final String VERSION_URL = "https://raw.githubusercontent.com/zhushisanxiangfangfamily/family-tree-app/master/version.txt";
     private static final String UPDATE_APK_URL = "https://zhushisanxiangfangfamily.github.io/family-tree/app-release.apk";
 
